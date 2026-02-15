@@ -1,0 +1,24 @@
+---
+description: 개발 규칙 — Next.js, Python, Supabase, 리스크 관리
+globs: "{app/**,backend/**,supabase/**,**/*.ts,**/*.tsx,**/*.py}"
+alwaysApply: false
+---
+
+# 개발 규칙
+
+## 기본 원칙
+1. 모든 기능은 '재사용 가능'하고 '데이터 중심'으로 설계
+2. Next.js 14 App Router + Python FastAPI 표준 준수
+3. 예외 처리 최우선 (법정관리 수준)
+
+## 리스크 관리
+- 모든 API 통신/DB 트랜잭션에 엄격한 예외 처리
+- 데이터 정합성 오류 → 즉시 중단 + 리스크 진단 보고서
+
+## 적층식 설계
+- 설계 데이터는 누적 관리, 하위 단계가 상위 설정 계승
+- AI 추천 채택 시 `temp_context`에 저장 → 집필에 강제 반영
+
+## 작업 기록 관리
+- 모든 중요 작업은 `README.md`의 "개발 로그"에 기록
+- 형식: 문제 → 원인 → 수정 → 결과 → 교훈

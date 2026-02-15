@@ -1,0 +1,38 @@
+{
+  "latest_episode": 1,
+  "story_date": "봄, 1일차 (새벽->아침->밤)",
+  "season": "봄 (아직 쌀쌀함)",
+  "weather": "맑음, 새벽 안개",
+  "current_location": "우강진 폐사 (수면 중)",
+  "next_episode_title": "2화 거지의 첫 싸움",
+  "mc_age": 18,
+  "mc_health": "3년간 영양실조, 쇠약, 이틀째 미식",
+  "mc_martial_rank": "단전 봉인 상태",
+  "mc_internal_energy": "0 (봉인). 실 한 가닥 기 감지됨",
+  "mc_available_skills": "없음 (기술/근육 기억은 있으나 내공 없음)",
+  "mc_money": "0냥 (무일푼)",
+  "mc_injury": "목에 얕은 칼자국 (자해 흔적), 등 타박상",
+  "mc_emotion": "피로+미약한 희망 (죽는 것 말고 선택지가 생김)",
+  "mc_current_goal": "내일 새벽 포구에서 왕 노인에게 품팔이",
+  "three_personality": {
+    "wisoun": {"status": "생존 결심, 극도 피로", "ratio": "51%", "note": "결단 주체"},
+    "junhyuk": {"status": "빙의 완료, 분석 모드", "ratio": "30%", "note": "전략 제안"},
+    "chunma": {"status": "빙의 완료, 관찰 모드", "ratio": "19%", "note": "눈을 감지 않는 놈으로 인정"}
+  },
+  "personality_conflict": "도주 방향 - 이준혁(왼쪽/큰길) vs 위소운(오른쪽/막다른 골목). 위소운이 옳았음",
+  "personality_agreement": "7일 뒤 단전 해봉 시도 (천마 주장, 이준혁 조건부 동의)",
+  "personality_growth": "위소운이 처음으로 자기 판단으로 살아남음 - 3인격 관계의 씨앗",
+  "total_assets": "0냥",
+  "combat_experience": 0,
+  "latest_combat": "흑호단 3명 조우 -> 도주 성공 (천마 살기로 1명 후퇴 유도)",
+  "combat_injury": "목 칼자국, 등 타박 (담장 넘다 추락), 영양실조",
+  "active_foreshadows": [
+    {"id": "F001", "content": "빙의의 원인", "planted": 1, "target": 270, "status": "미회수"},
+    {"id": "F002", "content": "화산파 누명 진상", "planted": 1, "target": 160, "status": "미회수"},
+    {"id": "F003", "content": "단전 봉인의 진실", "planted": 1, "target": 160, "status": "미회수"}
+  ],
+  "next_cautions": "위소운 목 상처 묘사 유지 / 이틀째 미식 상태 -> 2화 시작 시 극도의 허기 반영 / 천마의 7일 해봉 타임라인 2화부터 카운트 / 왕 노인(포구 어부) 캐릭터 첫 등장 준비 / 흑호단 보복 가능성",
+  "recent_timeline": [
+    {"episode": 1, "date": "봄 1일차", "location": "우강진 다리->폐사", "event": "자살 시도->빙의->흑호단 도주->생존 결심"}
+  ]
+}
