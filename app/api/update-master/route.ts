@@ -31,11 +31,11 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    const geminiKey = process.env.GEMINI_API_KEY;
-    if (!geminiKey) {
+    const claudeKey = process.env.CLAUDE_API_KEY;
+    if (!claudeKey) {
       return NextResponse.json({
         success: false,
-        message: 'GEMINI_API_KEY가 설정되지 않았습니다.',
+        message: 'CLAUDE_API_KEY가 설정되지 않았습니다.',
       }, { status: 500 });
     }
 
@@ -69,18 +69,18 @@ export async function POST(req: NextRequest) {
       console.log(`💾 최초 백업 생성: ${backupPath}`);
     }
 
-    // ── 3. Gemini Flash에게 업데이트 요청 ──
+    // ── 3. Claude Sonnet에게 업데이트 요청 ──
     // baseMaster = N화 반영 전 깨끗한 상태 (최초든 재업데이트든 동일)
     const prompt = buildUpdatePrompt(baseMaster, episodeNumber, episodeTitle, episodeContent);
-    console.log(`📝 제${episodeNumber}화 마스터 업데이트 시작 (Gemini Flash)`);
+    console.log(`📝 제${episodeNumber}화 마스터 업데이트 시작 (Claude Sonnet)`);
 
-    const updatedMaster = await callGemini(geminiKey, prompt, 8000);
+    const updatedMaster = await callClaude(claudeKey, prompt, 8000);
 
     if (!updatedMaster || updatedMaster.length < 500) {
-      throw new Error('Gemini가 유효한 업데이트를 생성하지 못했습니다.');
+      throw new Error('Claude가 유효한 업데이트를 생성하지 못했습니다.');
     }
 
-    // ── 4. 마크다운 코드 펜스 제거 (Gemini가 ```markdown 으로 감쌀 수 있음) ──
+    // ── 4. 마크다운 코드 펜스 제거 (AI가 ```markdown 으로 감쌀 수 있음) ──
     let cleanedMaster = updatedMaster
       .replace(/^```(?:markdown|md)?\s*\n?/i, '')
       .replace(/\n?```\s*$/i, '')
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
         validation: { hasSection1, hasSection2, hasSection7, hasEpNumber },
       },
       costInfo: {
-        model: 'gemini-3-flash-preview',
+        model: 'claude-sonnet-4-20250514',
         estimatedCostUSD: Math.round(estCost * 10000) / 10000,
       },
     });
@@ -183,31 +183,30 @@ ${trimmedContent}
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Gemini 3 Flash 호출 (유틸리티용)
+// Claude Sonnet 호출 (마스터 업데이트용)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-async function callGemini(apiKey: string, prompt: string, maxTokens: number): Promise<string> {
-  const model = 'gemini-3-flash-preview';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-
-  const res = await fetch(url, {
+async function callClaude(apiKey: string, prompt: string, maxTokens: number): Promise<string> {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
     body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.3, // 낮은 온도 = 정확한 업데이트
-        maxOutputTokens: maxTokens,
-      },
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: maxTokens,
+      temperature: 0.3, // 낮은 온도 = 정확한 업데이트
+      messages: [{ role: 'user', content: prompt }],
     }),
   });
 
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(`Gemini 호출 실패 (${res.status}): ${errorText}`);
+    throw new Error(`Claude 호출 실패 (${res.status}): ${errorText}`);
   }
 
   const data = await res.json();
-  const parts = data?.candidates?.[0]?.content?.parts;
-  return Array.isArray(parts) ? parts.map((p: any) => String(p?.text || '')).join('') : '';
+  return data?.content?.[0]?.text || '';
 }

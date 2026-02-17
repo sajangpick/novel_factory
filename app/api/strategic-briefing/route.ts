@@ -323,35 +323,37 @@ THREAD_USE|이번 화에서 다룰 복선과 처리법 (예: V3-01 힌트 투하
 - 이번 화에 등장하지 않는 캐릭터(위 복선에 언급되지 않은 인물)를 CASTING에 넣지 마세요
 - D안(실험적)도 바이블 범위 안에서만 실험하세요. 바이블에 없는 사건은 금지입니다`;
 
-    // Gemini API 호출 (유틸리티 작업이므로 Flash 모델 사용 — 비용 최소)
-    const geminiKey = process.env.GEMINI_API_KEY;
-    if (!geminiKey) {
+    // Claude Sonnet API 호출 — 전략 브리핑 AI 제안
+    const claudeKey = process.env.CLAUDE_API_KEY;
+    if (!claudeKey) {
       return NextResponse.json({
         success: false,
-        message: 'GEMINI_API_KEY가 설정되지 않았습니다.',
+        message: 'CLAUDE_API_KEY가 설정되지 않았습니다.',
       }, { status: 500 });
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(geminiKey)}`;
-    const aiRes = await fetch(url, {
+    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': claudeKey,
+        'anthropic-version': '2023-06-01',
+      },
       body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: aiPrompt }] }],
-        // ★ 전략 브리핑은 정확성이 핵심 — 0.7로 낮춰서 바이블 준수율 향상
-      generationConfig: { temperature: 0.7, maxOutputTokens: 6000 },
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 6000,
+        temperature: 0.7,
+        messages: [{ role: 'user', content: aiPrompt }],
       }),
     });
 
     if (!aiRes.ok) {
       const errText = await aiRes.text();
-      throw new Error(`Gemini 호출 실패 (${aiRes.status}): ${errText.slice(0, 300)}`);
+      throw new Error(`Claude 호출 실패 (${aiRes.status}): ${errText.slice(0, 300)}`);
     }
 
     const aiData = await aiRes.json();
-    const raw = Array.isArray(aiData?.candidates?.[0]?.content?.parts)
-      ? aiData.candidates[0].content.parts.map((p: any) => String(p?.text || '')).join('')
-      : '';
+    const raw = aiData?.content?.[0]?.text || '';
 
     if (!raw) {
       throw new Error('AI가 응답을 생성하지 못했습니다.');
