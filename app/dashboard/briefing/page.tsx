@@ -368,6 +368,21 @@ export default function BriefingPage() {
   // ── AI 자동 제안 (PUT /api/strategic-briefing) ──
   const autoSuggest = async () => {
     if (!briefing) return;
+
+    // ★ 이미 제안이 존재하면 확인 경고 — 실수로 다시 눌러서 비용 낭비 방지
+    const hasExistingDirections = directionA || directionB || directionC || directionD;
+    const hasExistingCliffs = cliff1 || cliff2 || cliff3;
+    if (hasExistingDirections || hasExistingCliffs || aiSuggestions) {
+      const confirmed = confirm(
+        '⚠️ 이미 AI 제안이 존재합니다!\n\n' +
+        '다시 생성하면 기존 방향/클리프행어가 새 내용으로 덮어씌워지고,\n' +
+        'AI 호출 비용(약 $0.10)이 추가로 발생합니다.\n\n' +
+        '마스터 파일이나 바이블을 수정한 경우에만 다시 생성하세요.\n\n' +
+        '정말 다시 생성하시겠습니까?'
+      );
+      if (!confirmed) return;
+    }
+
     setAutoSuggesting(true);
     try {
       const res = await fetch(`/api/strategic-briefing?episode=${briefing.nextEpisode}`, {
@@ -725,12 +740,12 @@ export default function BriefingPage() {
             {autoSuggesting ? (
               <>
                 <RefreshCw className="w-5 h-5 animate-spin" />
-                AI가 1~{briefing.currentState.latestEpisode}화 분석 중...
+                마스터 + 바이블 기반으로 제안 생성 중...
               </>
             ) : (
               <>
                 <Zap className="w-5 h-5" />
-                AI 자동 제안 — 방향 + 클리프행어 한번에 생성
+                AI 자동 제안 — 방향 + 클리프행어 생성 (~$0.10)
               </>
             )}
           </button>
