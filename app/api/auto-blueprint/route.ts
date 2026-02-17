@@ -49,8 +49,74 @@ export async function GET(req: NextRequest) {
       }, { status: 404 });
     }
 
-    // ── 2. ★★ master_story_bible.md에서 미래 로드맵 추출 (가장 중요!) ──
+    // ── 2. ★★★ 전략 브리핑 데이터 로드 (최우선!) ──
+    // 전략 회의에서 승인된 방향(A/B)과 클리프행어를 설계도 최상단에 배치
     const sections: string[] = [];
+    const briefingPath = join(novelDir, 'briefings', `제${episodeNumber}화_브리핑.json`);
+    if (existsSync(briefingPath)) {
+      try {
+        const briefingData = JSON.parse(readFileSync(briefingPath, 'utf-8'));
+        const briefingLines: string[] = [];
+        briefingLines.push(`# 🎯 제${episodeNumber}화 전략 브리핑 (승인됨: ${briefingData.approved ? '✅' : '⏳'})`);
+        briefingLines.push('> ⚠️ **이 브리핑이 이번 화의 최우선 지침입니다. 반드시 따르세요.**\n');
+
+        // 선택된 방향
+        if (briefingData.directionChoice) {
+          const dc = briefingData.directionChoice;
+          const selected = dc.selected; // 'A' 또는 'B'
+          if (selected === 'A' && dc.a) {
+            briefingLines.push('## 📌 선택된 방향: A안');
+            briefingLines.push(dc.a);
+          } else if (selected === 'B' && dc.b) {
+            briefingLines.push('## 📌 선택된 방향: B안');
+            briefingLines.push(dc.b);
+          }
+          briefingLines.push('');
+        }
+
+        // 선택된 클리프행어
+        if (briefingData.cliffhangerChoice) {
+          const cc = briefingData.cliffhangerChoice;
+          if (cc.selected >= 0 && cc.options && cc.options[cc.selected]) {
+            briefingLines.push('## 🔚 이 화의 클리프행어 (마지막 장면)');
+            briefingLines.push('> **반드시 이 클리프행어로 화를 끝내세요:**');
+            briefingLines.push(cc.options[cc.selected]);
+            briefingLines.push('');
+          }
+        }
+
+        // 추가 메모 — ★ AI 추천 텍스트는 필터링, 사용자 메모만 포함
+        // AI 추천 마커: 🎬, 💎, 📈, 🧩 로 시작하는 줄은 AI가 생성한 것
+        if (briefingData.notes) {
+          const userNotes = briefingData.notes
+            .split('\n')
+            .filter((line: string) => {
+              const trimmed = line.trim();
+              // AI 추천 마커가 있는 줄은 제외 (설계도에 불필요한 AI 추천이 섞이는 것 방지)
+              if (trimmed.startsWith('🎬 AI 추천')) return false;
+              if (trimmed.startsWith('💎 심장라인')) return false;
+              if (trimmed.startsWith('📈 감정 곡선')) return false;
+              if (trimmed.startsWith('🧩 복선 처리')) return false;
+              return true;
+            })
+            .join('\n')
+            .trim();
+          
+          if (userNotes) {
+            briefingLines.push('## 📝 추가 주의사항 (사용자 메모)');
+            briefingLines.push(userNotes);
+            briefingLines.push('');
+          }
+        }
+
+        sections.push(briefingLines.join('\n'));
+        console.log(`✅ 제${episodeNumber}화 전략 브리핑 로드 (${briefingData.approved ? '승인됨' : '미승인'})`);
+      } catch (e) {
+        console.warn('⚠️ 브리핑 파일 읽기 실패 (무시):', e);
+      }
+    }
+
+    // ── 3. master_story_bible.md에서 미래 로드맵 추출 ──
     const biblePath = join(novelDir, 'master_story_bible.md');
     if (existsSync(biblePath)) {
       const bibleContent = readFileSync(biblePath, 'utf-8');
@@ -71,12 +137,8 @@ export async function GET(req: NextRequest) {
         if (epPattern.test(line)) {
           matchingLines.push(line);
         }
-        // 전후 화도 포함 (맥락 파악용)
-        const prevPattern = new RegExp(`\\|\\s*\\*{0,2}${episodeNumber - 1}화\\*{0,2}\\s*\\|`);
-        const nextPattern = new RegExp(`\\|\\s*\\*{0,2}${episodeNumber + 1}화\\*{0,2}\\s*\\|`);
-        if (prevPattern.test(line) || nextPattern.test(line)) {
-          matchingLines.push(line);
-        }
+        // ⚠️ 이전 화(13화)·다음 화(15화) 행은 포함하지 않음
+        // 13화는 직전 화 엔딩(800자)으로 충분, 15화는 혼입 위험
       }
 
       // 해당 화가 속한 블록(아크) 제목 찾기
@@ -172,18 +234,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── 4. 캐릭터_인명록에서 해당 화 등장 캐릭터 ──
-    const charPath = join(novelDir, '캐릭터_인명록.md');
-    if (existsSync(charPath)) {
-      const charContent = readFileSync(charPath, 'utf-8');
-      // 간단히 "14화" 또는 이전 화에 등장한 캐릭터 관련 정보 추출
-      const charLines = charContent.split('\n').filter(line =>
-        line.includes(`${episodeNumber}화`) || line.includes(`${prevEpNum}화`)
-      );
-      if (charLines.length > 0) {
-        sections.push('## 👤 관련 캐릭터 언급\n' + charLines.join('\n'));
-      }
-    }
+    // ── 4. 캐릭터 정보 ──
+    // §4 관계 매트릭스, §6 확정 팩트는 설계도에 불필요 — §2(다음 화 주의사항)에 이미 핵심이 포함됨
+    // ⚠️ 인명록 무차별 추출 비활성화 — "14화"가 포함된 모든 줄을 가져오면
+    // 14화에 등장하지 않는 캐릭터(장위, 마현, 곽대용 등)까지 AI에게 전달되어
+    // 불필요한 캐릭터를 등장시키는 원인이 됨.
+    // 캐릭터 정보는 브리핑의 "등장인물 캐스팅"에서 사용자가 직접 선택함.
 
     // ── 5. 최종 설계도 조합 ──
     if (sections.length === 0) {

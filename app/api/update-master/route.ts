@@ -50,15 +50,28 @@ export async function POST(req: NextRequest) {
       }, { status: 404 });
     }
 
-    const currentMaster = readFileSync(masterPath, 'utf-8');
-
-    // ── 2. 백업 생성 (안전장치) ──
+    // ── 2. 백업 처리 + 기준 마스터 결정 ──
+    // ★ 핵심 로직: 재업데이트(수정 후 재동기화)를 안전하게 처리
     const backupPath = join(projectRoot, 'novels', 'murim_mna', `소설_진행_마스터_backup_${episodeNumber}화전.md`);
-    copyFileSync(masterPath, backupPath);
-    console.log(`💾 백업 생성: ${backupPath}`);
+    const backupExists = existsSync(backupPath);
+    let baseMaster: string; // AI에게 전달할 기준 마스터 (업데이트 전 상태)
+
+    if (backupExists) {
+      // ★ 재업데이트: 백업이 이미 존재 = 이전에 이 화수로 업데이트한 적 있음
+      // → 백업을 덮어쓰지 않고, 백업(N화 쓰기 전 깨끗한 상태)을 기준으로 사용
+      baseMaster = readFileSync(backupPath, 'utf-8');
+      console.log(`🔄 재업데이트 감지: 백업(${episodeNumber}화전)에서 기준 마스터 로드 (백업 보호)`);
+    } else {
+      // ★ 최초 업데이트: 현재 마스터를 백업으로 저장
+      const currentMaster = readFileSync(masterPath, 'utf-8');
+      copyFileSync(masterPath, backupPath);
+      baseMaster = currentMaster;
+      console.log(`💾 최초 백업 생성: ${backupPath}`);
+    }
 
     // ── 3. Gemini Flash에게 업데이트 요청 ──
-    const prompt = buildUpdatePrompt(currentMaster, episodeNumber, episodeTitle, episodeContent);
+    // baseMaster = N화 반영 전 깨끗한 상태 (최초든 재업데이트든 동일)
+    const prompt = buildUpdatePrompt(baseMaster, episodeNumber, episodeTitle, episodeContent);
     console.log(`📝 제${episodeNumber}화 마스터 업데이트 시작 (Gemini Flash)`);
 
     const updatedMaster = await callGemini(geminiKey, prompt, 8000);
@@ -109,7 +122,7 @@ export async function POST(req: NextRequest) {
         validation: { hasSection1, hasSection2, hasSection7, hasEpNumber },
       },
       costInfo: {
-        model: 'gemini-2.0-flash',
+        model: 'gemini-3-flash-preview',
         estimatedCostUSD: Math.round(estCost * 10000) / 10000,
       },
     });
@@ -148,6 +161,7 @@ function buildUpdatePrompt(
 §1 현재 상태 → 최신 집필 화수를 ${episodeNumber}화로, 위치/시간/건강/무공/소지금 등을 본문 기반으로 갱신
 §2 다음 화 주의 → 제${episodeNumber + 1}화 내용으로 교체. 스토리 연결, 캐릭터 주의, 시스템 규칙 작성
 §3 활성 떡밥 → 새 떡밥 추가(있으면), 기존 떡밥 상태 변경(힌트 진행/회수 완료 등). 회수 완료(✅)된 것은 표에서 삭제하고 §8 아카이브 안내 코멘트만 남김
+§8 보류 떡밥 자동 복원 → §8에 "⏸️ 보류" 상태 떡밥이 있으면, 목표 회수 범위에 제${episodeNumber + 1}화가 포함되는 항목을 §3 활성 떡밥으로 복원하세요 (상태를 🟡로 변경). 복원한 항목은 §8 보류 목록에서 제거하세요
 §4 관계 매트릭스 → 변한 관계만 수치 갱신 (변화 없으면 유지)
 §5 감정 목표 → 제${episodeNumber}화 행 기록 (텐션, 감정 키워드, 핵심 장면). 이준혁 감정 단계도 갱신
 §6 확정 팩트 → 새로 확정된 팩트 추가 (있으면)
@@ -169,11 +183,11 @@ ${trimmedContent}
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Gemini Flash 호출 (generate-episode와 동일 패턴)
+// Gemini 3 Flash 호출 (유틸리티용)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 async function callGemini(apiKey: string, prompt: string, maxTokens: number): Promise<string> {
-  const model = 'gemini-2.0-flash';
+  const model = 'gemini-3-flash-preview';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const res = await fetch(url, {

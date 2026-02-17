@@ -398,33 +398,33 @@ export default function DashboardPage() {
         <h3 className="text-lg font-bold text-foreground mb-4">빠른 작업</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <QuickActionButton
-            icon={PenTool}
-            label="소설 집필"
-            description="Step 1~8 프로세스"
-            href="/dashboard/step1"
-            color="murim-accent"
+            icon={Zap}
+            label="본문 집필"
+            description="A/B 파이프라인으로 새 화 쓰기"
+            href="/dashboard/step6"
+            color="murim-gold"
             primary
           />
           <QuickActionButton
-            icon={Database}
-            label="세계관 검색"
-            description="@태그로 자료 찾기"
-            href="/dashboard/step5"
-            color="purple-500"
+            icon={FileText}
+            label="전략 문서"
+            description="마스터 · 로드맵 · 규칙 확인/수정"
+            href="/dashboard/strategy"
+            color="murim-accent"
           />
           <QuickActionButton
             icon={Users}
-            label="인명록 관리"
+            label="인명록"
             description={`${characterCount}명 등록됨`}
             href="/dashboard/characters"
             color="blue-500"
           />
           <QuickActionButton
-            icon={Zap}
-            label="본문 집필"
-            description="바로 AI 생성 시작"
-            href="/dashboard/step6"
-            color="murim-gold"
+            icon={Database}
+            label="세계관 DB"
+            description="무림 세계관 자료 검색"
+            href="/dashboard/worlddb"
+            color="purple-500"
           />
         </div>
       </div>

@@ -49,8 +49,8 @@ export default function Step6Page() {
 
   // Level 정보 (UI 표시용)
   const AI_LEVEL_INFO = {
-    1: { name: 'Lv.1 초안', model: 'Gemini Flash', cost: '~$0.01/화', color: 'text-green-400', bg: 'bg-green-900/30', border: 'border-green-700', desc: '거의 무료! 초안 작성용' },
-    2: { name: 'Lv.2 다듬기', model: 'Claude Sonnet', cost: '~$0.30/화', color: 'text-blue-400', bg: 'bg-blue-900/30', border: 'border-blue-700', desc: '가성비 좋음. 다듬기용' },
+    1: { name: 'Lv.1 초안', model: 'Gemini 3 Pro', cost: '~$0.25/화', color: 'text-green-400', bg: 'bg-green-900/30', border: 'border-green-700', desc: '고품질 초안. 규칙 준수율 높음' },
+    2: { name: 'Lv.2 다듬기', model: 'Claude Sonnet', cost: '~$0.80/화', color: 'text-blue-400', bg: 'bg-blue-900/30', border: 'border-blue-700', desc: '가성비 좋음. 다듬기용' },
     3: { name: 'Lv.3 최종', model: 'Claude Opus', cost: '~$2.00/화', color: 'text-purple-400', bg: 'bg-purple-900/30', border: 'border-purple-700', desc: '최고 품질. 최종 퇴고용' },
   };
 
@@ -62,6 +62,18 @@ export default function Step6Page() {
 
   // ── ★ 설계도 자동 세팅 상태 ──
   const [isLoadingBlueprint, setIsLoadingBlueprint] = useState(false);
+
+  // ── ★★ AI 작가 파이프라인 상태 ──
+  const [structureDesign, setStructureDesign] = useState('');        // 구조 설계 결과
+  const [isStructuring, setIsStructuring] = useState(false);         // 구조 설계 중
+  const [structureCost, setStructureCost] = useState(0);             // 구조 설계 비용
+  const [epCheckResults, setEpCheckResults] = useState<any>(null);   // EP 검사 결과
+  const [isEpChecking, setIsEpChecking] = useState(false);           // EP 검사 중
+  const [epCheckCost, setEpCheckCost] = useState(0);                 // EP 검사 비용
+  const [pipelineStep, setPipelineStep] = useState<'read' | 'blueprint' | 'structure' | 'generate' | 'check' | 'done'>('blueprint'); // 현재 파이프라인 단계 (read=읽기전용)
+
+  // ── ★★ A/B 테스트 모드 ──
+  const [premiumMode, setPremiumMode] = useState(false);             // false=A표준, true=B프리미엄
 
   // ── 초기 데이터 로드 ──
   useEffect(() => {
@@ -106,19 +118,8 @@ export default function Step6Page() {
       }
     }
 
-    // 저장된 본문 불러오기 (localStorage 먼저, 없으면 Supabase에서)
-    const savedData = localStorage.getItem('novel_step6_episodes');
-    if (savedData) {
-      try {
-        const parsed = JSON.parse(savedData);
-        setSavedEpisodes(parsed);
-      } catch (e) {
-        console.warn('저장된 본문 로드 실패:', e);
-      }
-    }
-
-    // ★ Supabase에서 에피소드 불러오기 (localStorage에 없는 화수만 보강)
-    loadEpisodesFromDB();
+    // ★ 파일에서 에피소드 목록 로드 (원본 = 파일)
+    loadEpisodesFromFiles();
 
     // Supabase에서 캐릭터 불러오기
     loadCharacters();
@@ -126,28 +127,50 @@ export default function Step6Page() {
     loadMemoryData();
   }, []);
 
-  // ── ★ Supabase에서 에피소드 불러오기 (스토리 읽기 지원) ──
-  const loadEpisodesFromDB = async () => {
+  // ── ★ 파일에서 에피소드 목록 로드 (원본 = 파일, 폴백 = DB) ──
+  const loadEpisodesFromFiles = async () => {
     try {
-      const res = await fetch('/api/episodes?seriesId=a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11');
+      const res = await fetch('/api/load-episode?list=true');
       const data = await res.json();
       if (data.success && data.episodes?.length > 0) {
-        // Supabase 에피소드를 savedEpisodes에 병합 (localStorage 우선)
-        setSavedEpisodes(prev => {
-          const merged = { ...prev };
-          for (const ep of data.episodes) {
-            if (ep.manuscript && !merged[ep.episode_number]) {
-              merged[ep.episode_number] = ep.manuscript;
-            }
-          }
-          // localStorage에도 저장 (다음 로드 시 빠르게)
-          localStorage.setItem('novel_step6_episodes', JSON.stringify(merged));
-          return merged;
-        });
-        console.log(`✅ Supabase에서 ${data.episodes.length}화 로드 완료`);
+        // 파일에서 가져온 에피소드를 savedEpisodes에 등록 (번호만 기록, 내용은 화별 로드)
+        const episodeMap: Record<number, string> = {};
+        for (const ep of data.episodes) {
+          episodeMap[ep.number] = `__file__${ep.charCount}`; // 파일 존재 마커
+        }
+        setSavedEpisodes(episodeMap);
+        console.log(`✅ 파일에서 ${data.episodes.length}화 목록 로드 (최신: ${data.maxEpisode}화)`);
       }
     } catch (e) {
-      console.warn('Supabase 에피소드 로드 실패 (무시):', e);
+      console.warn('⚠️ 파일 목록 로드 실패, localStorage 폴백:', e);
+      // 폴백: localStorage에서 읽기
+      const savedData = localStorage.getItem('novel_step6_episodes');
+      if (savedData) {
+        try { setSavedEpisodes(JSON.parse(savedData)); } catch {}
+      }
+    }
+  };
+
+  // ── ★ 특정 화 본문 로드 (파일 → DB → 없음) ──
+  const loadEpisodeContent = async (epNum: number) => {
+    try {
+      const res = await fetch(`/api/load-episode?episode=${epNum}`);
+      const data = await res.json();
+
+      if (data.success && data.found && data.content) {
+        setContent(data.content);
+        // savedEpisodes에도 반영 (화 번호 표시용)
+        setSavedEpisodes(prev => ({ ...prev, [epNum]: data.content }));
+        setPipelineStep('read');     // 이미 쓴 화 = 읽기 모드
+        console.log(`📖 제${epNum}화 로드 (${data.source}, ${data.charCount}자)`);
+      } else {
+        setContent('');
+        setPipelineStep('blueprint');  // 본문 없으면 작업 모드
+      }
+    } catch (e) {
+      console.warn(`⚠️ 제${epNum}화 로드 실패:`, e);
+      setContent('');
+      setPipelineStep('blueprint');
     }
   };
 
@@ -203,11 +226,10 @@ export default function Step6Page() {
     if (episodes.length > 0 && episodes[episodeNumber - 1]) {
       setEpisodeTitle(episodes[episodeNumber - 1].title || `제${episodeNumber}화`);
     }
-    // 저장된 본문이 있으면 로드
-    if (savedEpisodes[episodeNumber]) {
-      setContent(savedEpisodes[episodeNumber]);
-    } else {
-      setContent('');
+    // ★ 파일에서 본문 로드 (원본 = 파일)
+    // 생성 중일 때는 로드하지 않음 (race condition 방지: autoSave → savedEpisodes 변경 → 파일 아직 미저장 → content 초기화 방지)
+    if (!isGenerating) {
+      loadEpisodeContent(episodeNumber);
     }
 
     // 해당 화의 설계도 로드 (Step4 저장 → manual 저장 → auto 저장 순서)
@@ -234,7 +256,8 @@ export default function Step6Page() {
     } else if (episodeNumber === 1) {
       setPreviousSummary(''); // 1화는 이전 화 없음
     }
-  }, [episodeNumber, episodes, savedEpisodes, memoryCards]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [episodeNumber, episodes, memoryCards]);
 
   // ── 캐릭터 로드 (Supabase) ──
   const loadCharacters = async () => {
@@ -277,7 +300,7 @@ export default function Step6Page() {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2분 타임아웃
+      const timeoutId = setTimeout(() => controller.abort(), 360000); // 6분 타임아웃 (품질 엔진 + AI 에디터 포함)
 
       // Memory System 컨텍스트 구성
       const memoryContext = memoryDashboard ? {
@@ -304,6 +327,8 @@ export default function Step6Page() {
           episodeNumber,
           episodeTitle,
           blueprint,
+          structureDesign,                      // ★ [파이프라인] 구조 설계 전달
+          premiumMode,                          // ★ [A/B 테스트] B모드 여부
           section: activeSection,
           aiLevel,                              // ★ 선택한 AI Level 전달
           characters: characters.slice(0, 10), // 주요 캐릭터 10명
@@ -330,7 +355,20 @@ export default function Step6Page() {
           setContent(prev => prev ? prev + '\n\n***\n\n' + data.episode.content : data.episode.content);
         }
 
-        // 자동 저장
+        // ★ 파일 + DB에 저장 (await로 완료 보장 → 이후 savedEpisodes 업데이트)
+        try {
+          const saveRes = await fetch('/api/save-episode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ episodeNumber, episodeTitle, content: data.episode.content }),
+          });
+          const saveData = await saveRes.json();
+          setSaveStatus(saveData.message || '');
+          console.log('📁 AI 생성 후 자동 저장:', saveData.message);
+        } catch (e) {
+          console.warn('⚠️ 파일/DB 저장 실패:', e);
+        }
+        // ★ localStorage에도 저장 (파일 저장 완료 후 → race condition 방지)
         autoSave(data.episode.content);
 
         // ★ 비용 정보 저장 + 누적
@@ -340,6 +378,7 @@ export default function Step6Page() {
         }
 
         console.log(`✅ 제${episodeNumber}화 생성 완료 (${data.episode.charCount}자)`);
+        setPipelineStep('check');  // ★ 파이프라인: 생성 완료 → EP 검사 단계로
 
         // ★★ 전체 생성 완료 시 → 소설_진행_마스터.md 자동 업데이트
         if (activeSection === 'full' && data.episode.content) {
@@ -352,7 +391,7 @@ export default function Step6Page() {
       console.error('❌ 생성 오류:', error);
 
       if (error.name === 'AbortError') {
-        alert('⏱️ 생성 시간이 초과되었습니다. (2분)\n\n네트워크 상태를 확인하고 다시 시도해주세요.');
+        alert('⏱️ 생성 시간이 초과되었습니다. (6분)\n\n품질 엔진이 포함되어 시간이 걸릴 수 있습니다.\n네트워크 상태를 확인하고 다시 시도해주세요.');
       } else {
         alert(`❌ 생성 실패: ${error.message}`);
       }
@@ -371,18 +410,39 @@ export default function Step6Page() {
     localStorage.setItem('novel_step6_episodes', JSON.stringify(updated));
   };
 
-  // ── 수동 저장 ──
-  const handleSave = () => {
+  // ── 수동 저장 (localStorage + 파일 + DB 동시) ──
+  const [saveStatus, setSaveStatus] = useState('');
+  const handleSave = async () => {
     if (!content) {
       alert('저장할 내용이 없습니다.');
       return;
     }
     setIsSaving(true);
+    setSaveStatus('');
+
+    // 1. localStorage (즉시)
     autoSave();
-    setTimeout(() => {
+
+    // 2. 파일 + DB (API 호출)
+    try {
+      const res = await fetch('/api/save-episode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          episodeNumber,
+          episodeTitle,
+          content,
+        }),
+      });
+      const data = await res.json();
+      setSaveStatus(data.message || '저장 완료');
+      console.log(`💾 제${episodeNumber}화 저장 완료:`, data.message);
+    } catch (e: any) {
+      setSaveStatus(`⚠️ 파일/DB 저장 실패 (localStorage는 저장됨)`);
+      console.error('저장 오류:', e);
+    } finally {
       setIsSaving(false);
-      console.log(`💾 제${episodeNumber}화 저장 완료`);
-    }, 500);
+    }
   };
 
   // ── 텍스트 파일로 내보내기 ──
@@ -468,12 +528,86 @@ export default function Step6Page() {
     }
   };
 
+  // ── ★★ [파이프라인 Step B] 구조 설계 호출 ──
+  const handleStructureDesign = async () => {
+    if (!blueprint || blueprint.length < 50) {
+      alert('❌ 먼저 설계도를 작성하세요. (최소 50자)');
+      return;
+    }
+    setIsStructuring(true);
+    try {
+      const res = await fetch('/api/structure-design', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          episodeNumber,
+          episodeTitle,
+          blueprint,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.structure) {
+        setStructureDesign(data.structure);
+        if (data.costInfo?.estimatedCostUSD) {
+          setStructureCost(data.costInfo.estimatedCostUSD);
+          setTotalSessionCost(prev => prev + data.costInfo.estimatedCostUSD);
+        }
+        setPipelineStep('structure');
+      } else {
+        alert(`⚠️ 구조 설계 실패: ${data.message}`);
+      }
+    } catch (err: any) {
+      alert(`❌ 구조 설계 오류: ${err.message}`);
+    } finally {
+      setIsStructuring(false);
+    }
+  };
+
+  // ── ★★ [파이프라인 Step D] EP 규칙 검사 ──
+  const handleEpCheck = async () => {
+    if (!content || content.length < 500) {
+      alert('❌ 검사할 본문이 부족합니다. (최소 500자)');
+      return;
+    }
+    setIsEpChecking(true);
+    setEpCheckResults(null);
+    try {
+      const res = await fetch('/api/ep-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          episodeNumber,
+          content,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEpCheckResults(data);
+        if (data.costInfo?.estimatedCostUSD) {
+          setEpCheckCost(data.costInfo.estimatedCostUSD);
+          setTotalSessionCost(prev => prev + data.costInfo.estimatedCostUSD);
+        }
+        setPipelineStep('done');
+      } else {
+        alert(`⚠️ EP 검사 실패: ${data.message}`);
+      }
+    } catch (err: any) {
+      alert(`❌ EP 검사 오류: ${err.message}`);
+    } finally {
+      setIsEpChecking(false);
+    }
+  };
+
   // ── 이전/다음 화 이동 ──
   const goToEpisode = (num: number) => {
     if (content && content !== savedEpisodes[episodeNumber]) {
       autoSave();
     }
     setEpisodeNumber(num);
+    // ★ 파이프라인 상태 초기화 (본문 유무는 useEffect에서 판단)
+    setStructureDesign('');
+    setEpCheckResults(null);
+    setMasterUpdateResult('');
   };
 
   return (
@@ -797,12 +931,166 @@ export default function Step6Page() {
             ))}
           </div>
 
-          {/* ★★ 에디터 본체 — 본문 없으면 설계도 모드, 있으면 편집 모드 */}
+          {/* ★★ 에디터 본체 — 파이프라인 단계별 표시 */}
           <div className="flex-1 p-4 overflow-hidden flex flex-col">
-            {!content && !isGenerating ? (
-              /* ━━━ 설계도 모드: 본문이 없을 때 메인 영역에 크게 표시 ━━━ */
-              <div className="flex-1 flex flex-col gap-4 overflow-hidden">
-                {/* 상단: 설계도 자동 세팅 + 직접 편집 */}
+
+            {/* ━━━ 읽기 모드: 이미 작성된 화 (바로 편집 가능) ━━━ */}
+            {pipelineStep === 'read' && (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {/* 읽기 모드 헤더 */}
+                <div className="shrink-0 flex items-center justify-between mb-3 px-1">
+                  <h2 className="text-lg font-bold text-foreground">
+                    📖 제{episodeNumber}화 {episodeTitle && `— ${episodeTitle}`}
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">
+                      {content.replace(/\s/g, '').length.toLocaleString()}자
+                    </span>
+                    {content !== savedEpisodes[episodeNumber] && (
+                      <span className="text-xs text-yellow-400 font-bold animate-pulse">● 수정됨</span>
+                    )}
+                    {content !== savedEpisodes[episodeNumber] && (
+                      <button
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className="px-3 py-1.5 text-xs bg-murim-gold text-black font-bold rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50"
+                      >
+                        {isSaving ? '⏳ 저장 중...' : '💾 저장'}
+                      </button>
+                    )}
+                    {saveStatus && (
+                      <span className={`text-[10px] ${saveStatus.includes('✅') ? 'text-green-400' : 'text-yellow-400'}`}>
+                        {saveStatus}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => setPipelineStep('blueprint')}
+                      className="px-3 py-1.5 text-xs bg-murim-dark border border-murim-border text-gray-400 hover:text-white rounded-lg transition-colors"
+                    >
+                      🔧 작업 도구
+                    </button>
+                    {/* 14화 이상만 폐기 가능 (1~13화 원본 보호) */}
+                    {episodeNumber > 13 && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`제${episodeNumber}화를 폐기하시겠습니까?\n(파일은 복원 가능하게 보관됩니다)`)) return;
+                          try {
+                            const res = await fetch(`/api/delete-episode?episode=${episodeNumber}`, { method: 'DELETE' });
+                            const data = await res.json();
+                            if (data.success) {
+                              alert(data.message);
+                              setContent('');
+                              setSavedEpisodes(prev => { const next = {...prev}; delete next[episodeNumber]; return next; });
+                              setPipelineStep('blueprint');
+                              loadEpisodesFromFiles();
+                            } else {
+                              alert('폐기 실패: ' + data.message);
+                            }
+                          } catch (e: any) {
+                            alert('오류: ' + e.message);
+                          }
+                        }}
+                        className="px-3 py-1.5 text-xs bg-red-900/30 border border-red-700 text-red-400 hover:bg-red-900/50 hover:text-red-300 rounded-lg transition-colors"
+                      >
+                        🗑️ 폐기
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {/* 본문 편집 영역: 읽기 느낌이지만 클릭하면 바로 수정 가능 */}
+                <div className="flex-1 overflow-hidden bg-murim-darker border border-murim-border rounded-lg">
+                  <textarea
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    className="w-full h-full p-8 bg-transparent text-foreground font-serif text-base leading-[2.2] tracking-wide resize-none focus:outline-none max-w-3xl mx-auto block"
+                    style={{ caretColor: '#d4a853' }}
+                    spellCheck={false}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* ━━━ A/B 모드 토글 + 파이프라인 진행 표시 바 (작업 모드에서만 표시) ━━━ */}
+            {pipelineStep !== 'read' && (
+            <div className="shrink-0 mb-3 px-1 space-y-2">
+              {/* A/B 모드 스위치 */}
+              <div className="flex items-center gap-3 p-2 rounded-lg bg-murim-darker border border-murim-border">
+                <span className="text-xs text-gray-400 font-medium">모드:</span>
+                <button
+                  onClick={() => setPremiumMode(false)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                    !premiumMode
+                      ? 'bg-green-600 text-white shadow-lg shadow-green-900/30'
+                      : 'bg-murim-darker text-gray-500 border border-murim-border hover:text-gray-300'
+                  }`}
+                >
+                  A 표준 (~$0.37/화)
+                </button>
+                <button
+                  onClick={() => setPremiumMode(true)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                    premiumMode
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/30'
+                      : 'bg-murim-darker text-gray-500 border border-murim-border hover:text-gray-300'
+                  }`}
+                >
+                  B 프리미엄 (~$0.82/화)
+                </button>
+                <span className="text-[10px] text-gray-600 ml-2">
+                  {premiumMode
+                    ? '전편 참조 + 2-pass 퇴고(Sonnet) = 최고 품질'
+                    : '전편 참조 + 1-pass 생성 = 빠르고 저렴'}
+                </span>
+              </div>
+              {/* 파이프라인 스텝 바 */}
+              <div className="flex items-center gap-1">
+                {[
+                  { key: 'blueprint', label: 'A. 설계도', icon: '📋' },
+                  { key: 'structure', label: 'B. 구조 설계', icon: '🏗️' },
+                  { key: 'generate', label: 'C. AI 생성', icon: '📝' },
+                  { key: 'check', label: 'D. EP 검사', icon: '🔍' },
+                  { key: 'done', label: '완료', icon: '✅' },
+                ].map((step, idx, arr) => {
+                  const steps = ['blueprint', 'structure', 'generate', 'check', 'done'];
+                  const currentIdx = steps.indexOf(pipelineStep);
+                  const stepIdx = steps.indexOf(step.key);
+                  const isActive = step.key === pipelineStep;
+                  const isPast = stepIdx < currentIdx;
+                  const isFuture = stepIdx > currentIdx;
+                  return (
+                    <div key={step.key} className="flex items-center gap-1">
+                      <button
+                        onClick={() => {
+                          if (isPast || isActive) setPipelineStep(step.key as any);
+                        }}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                          isActive ? 'bg-murim-gold text-black font-bold' :
+                          isPast ? 'bg-murim-gold/20 text-murim-gold cursor-pointer hover:bg-murim-gold/30' :
+                          'bg-murim-darker text-gray-600 border border-murim-border'
+                        }`}
+                      >
+                        {step.icon} {step.label}
+                      </button>
+                      {idx < arr.length - 1 && (
+                        <span className={`text-xs ${isPast ? 'text-murim-gold' : 'text-gray-700'}`}>→</span>
+                      )}
+                    </div>
+                  );
+                })}
+                {/* 파이프라인 비용 + 모드 표시 */}
+                <span className="ml-auto text-xs text-gray-600">
+                  <span className={`font-bold ${premiumMode ? 'text-blue-400' : 'text-green-400'}`}>
+                    {premiumMode ? 'B모드' : 'A모드'}
+                  </span>
+                  {' '}비용: <span className="text-green-400 font-bold">${(structureCost + epCheckCost).toFixed(4)}</span>
+                </span>
+              </div>
+            </div>
+            )}
+
+            {/* ━━━ Step A: 설계도 모드 ━━━ */}
+            {pipelineStep === 'blueprint' && (
+              <div className="flex-1 flex flex-col gap-3 overflow-hidden">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-bold text-murim-gold">📋 제{episodeNumber}화 설계도</h2>
                   <div className="flex items-center gap-2">
@@ -811,7 +1099,7 @@ export default function Step6Page() {
                       disabled={isLoadingBlueprint}
                       className="px-4 py-2 text-sm bg-murim-gold/20 hover:bg-murim-gold/30 text-murim-gold border border-murim-gold/30 rounded-lg transition-colors disabled:opacity-50 font-semibold"
                     >
-                      {isLoadingBlueprint ? '⏳ 로딩 중...' : '⚡ 자동 세팅 (master_story_bible + 진행마스터)'}
+                      {isLoadingBlueprint ? '⏳ 로딩 중...' : '⚡ 자동 세팅'}
                     </button>
                     <span className={`text-xs ${blueprint.length >= 100 ? 'text-green-400' : 'text-gray-500'}`}>
                       {blueprint.length}자 {blueprint.length >= 100 ? '✅' : '(최소 100자)'}
@@ -819,52 +1107,186 @@ export default function Step6Page() {
                   </div>
                 </div>
 
-                {/* 설계도 편집 영역 (전체 너비) */}
                 <textarea
                   value={blueprint}
                   onChange={(e) => setBlueprint(e.target.value)}
-                  placeholder={`제${episodeNumber}화 설계도를 입력하세요...
-
-⚡ 위의 "자동 세팅" 버튼을 클릭하면:
-  - master_story_bible.md에서 ${episodeNumber}화 로드맵 (미래 계획)
-  - 소설_진행_마스터.md에서 현재 상태 + 주의사항 + 활성 떡밥
-  - 제${episodeNumber - 1}화 엔딩 장면 (연결용)
-  이 모두 자동으로 채워집니다.
-
-✏️ 자동 세팅 후 내용을 확인/수정하고,
-   아래 "AI 생성" 버튼으로 소설을 생성하세요.`}
-                  className="flex-1 w-full bg-murim-darker border border-murim-border rounded-lg p-6 text-gray-300 resize-none focus:outline-none focus:border-murim-gold text-sm leading-relaxed"
+                  placeholder={`제${episodeNumber}화 설계도를 입력하세요...\n\n⚡ "자동 세팅" → master_story_bible + 진행마스터에서 자동 로딩\n✏️ 확인/수정 후 → "구조 설계" 버튼 클릭`}
+                  className="flex-1 w-full bg-murim-darker border border-murim-border rounded-lg p-5 text-gray-300 resize-none focus:outline-none focus:border-murim-gold text-sm leading-relaxed"
                   spellCheck={false}
                 />
 
-                {/* 설계도 저장 버튼 */}
-                {blueprint && (
-                  <div className="flex items-center justify-end gap-3">
-                    <button
-                      onClick={() => {
-                        const saved = JSON.parse(localStorage.getItem('novel_step4_all_designs') || '{}');
-                        if (!saved[episodeNumber]) saved[episodeNumber] = {};
-                        saved[episodeNumber]['manual'] = blueprint;
-                        localStorage.setItem('novel_step4_all_designs', JSON.stringify(saved));
-                        alert('✅ 설계도 저장 완료');
-                      }}
-                      className="px-4 py-2 text-sm bg-murim-darker border border-murim-border text-gray-400 hover:text-murim-gold hover:border-murim-gold rounded-lg transition-colors"
-                    >
-                      💾 설계도 저장
-                    </button>
-                  </div>
-                )}
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => {
+                      const saved = JSON.parse(localStorage.getItem('novel_step4_all_designs') || '{}');
+                      if (!saved[episodeNumber]) saved[episodeNumber] = {};
+                      saved[episodeNumber]['manual'] = blueprint;
+                      localStorage.setItem('novel_step4_all_designs', JSON.stringify(saved));
+                      alert('✅ 설계도 저장 완료');
+                    }}
+                    disabled={!blueprint}
+                    className="px-4 py-2 text-sm bg-murim-darker border border-murim-border text-gray-400 hover:text-murim-gold hover:border-murim-gold rounded-lg transition-colors disabled:opacity-30"
+                  >
+                    💾 설계도 저장
+                  </button>
+                  <button
+                    onClick={handleStructureDesign}
+                    disabled={isStructuring || blueprint.length < 50}
+                    className="px-6 py-2.5 text-sm bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-lg font-bold transition-all disabled:opacity-30 shadow-lg"
+                  >
+                    {isStructuring ? '⏳ 구조 설계 중... (Gemini Flash ~$0.01)' : '🏗️ 다음: 구조 설계 →'}
+                  </button>
+                </div>
               </div>
-            ) : (
-              /* ━━━ 편집 모드: 본문이 있을 때 기존 에디터 ━━━ */
-              <textarea
-                ref={editorRef}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder={`제${episodeNumber}화 AI 생성 중...`}
-                className="flex-1 w-full bg-murim-darker border border-murim-border rounded-lg p-6 text-foreground resize-none focus:outline-none focus:border-murim-accent font-serif text-base leading-[2] tracking-wide"
-                spellCheck={false}
-              />
+            )}
+
+            {/* ━━━ Step B: 구조 설계 확인/수정 모드 ━━━ */}
+            {pipelineStep === 'structure' && (
+              <div className="flex-1 flex flex-col gap-3 overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-cyan-400">🏗️ 제{episodeNumber}화 구조 설계</h2>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPipelineStep('blueprint')}
+                      className="px-3 py-1.5 text-xs bg-murim-darker border border-murim-border text-gray-400 hover:text-white rounded-lg transition-colors"
+                    >
+                      ← 설계도로 돌아가기
+                    </button>
+                    <button
+                      onClick={handleStructureDesign}
+                      disabled={isStructuring}
+                      className="px-3 py-1.5 text-xs bg-cyan-900/30 border border-cyan-700 text-cyan-400 hover:bg-cyan-900/50 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {isStructuring ? '⏳ 재생성 중...' : '🔄 구조 재생성'}
+                    </button>
+                    <span className="text-xs text-gray-600">{structureDesign.length}자</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-gray-500 px-1">
+                  아래 구조를 확인/수정하세요. 이 구조가 AI 생성의 &quot;레시피&quot;가 됩니다. 수정할수록 결과가 좋아집니다.
+                </p>
+
+                <textarea
+                  value={structureDesign}
+                  onChange={(e) => setStructureDesign(e.target.value)}
+                  className="flex-1 w-full bg-murim-darker border border-cyan-900/50 rounded-lg p-5 text-gray-300 resize-none focus:outline-none focus:border-cyan-500 text-sm leading-relaxed"
+                  spellCheck={false}
+                />
+
+                <div className="flex items-center justify-end">
+                  <button
+                    onClick={() => setPipelineStep('generate')}
+                    disabled={!structureDesign}
+                    className="px-6 py-2.5 text-sm bg-gradient-to-r from-murim-gold to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black rounded-lg font-bold transition-all disabled:opacity-30 shadow-lg"
+                  >
+                    📝 다음: AI 생성 →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ━━━ Step C: AI 생성 (기존 에디터) + Step D: EP 검사 결과 ━━━ */}
+            {(pipelineStep === 'generate' || pipelineStep === 'check' || pipelineStep === 'done') && (
+              <div className="flex-1 flex flex-col gap-3 overflow-hidden">
+                {/* 상단: 구조로 돌아가기 + 에디터 상태 */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPipelineStep('structure')}
+                      className="px-3 py-1.5 text-xs bg-murim-darker border border-murim-border text-gray-400 hover:text-white rounded-lg transition-colors"
+                    >
+                      ← 구조 수정
+                    </button>
+                    {structureDesign && (
+                      <span className="text-xs text-cyan-600">구조 설계 반영됨 ✅</span>
+                    )}
+                  </div>
+                  {content && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleEpCheck}
+                        disabled={isEpChecking || !content || content.length < 500}
+                        className="px-4 py-1.5 text-sm bg-orange-900/30 border border-orange-700 text-orange-400 hover:bg-orange-900/50 rounded-lg font-semibold transition-colors disabled:opacity-30"
+                      >
+                        {isEpChecking ? '⏳ EP 검사 중...' : '🔍 EP 규칙 검사'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* 에디터 + EP 결과 영역 */}
+                <div className="flex-1 flex gap-3 overflow-hidden">
+                  {/* 에디터 */}
+                  <textarea
+                    ref={editorRef}
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder={isGenerating ? `제${episodeNumber}화 AI 생성 중... (${AI_LEVEL_INFO[aiLevel].model})` : `아래 "AI 생성" 버튼을 클릭하세요.\n\n구조 설계가 반영되어 품질이 높아집니다.`}
+                    className={`${epCheckResults ? 'w-2/3' : 'w-full'} bg-murim-darker border border-murim-border rounded-lg p-5 text-foreground resize-none focus:outline-none focus:border-murim-accent font-serif text-base leading-[2] tracking-wide`}
+                    spellCheck={false}
+                  />
+
+                  {/* EP 검사 결과 패널 */}
+                  {epCheckResults && (
+                    <div className="w-1/3 bg-murim-darker border border-murim-border rounded-lg p-4 overflow-y-auto">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-bold text-orange-400">🔍 EP 검사 결과</h3>
+                        <span className={`text-2xl font-black ${
+                          epCheckResults.score >= 80 ? 'text-green-400' :
+                          epCheckResults.score >= 60 ? 'text-yellow-400' : 'text-red-400'
+                        }`}>
+                          {epCheckResults.score}점
+                        </span>
+                      </div>
+
+                      {/* 요약 */}
+                      <div className="flex items-center gap-2 mb-3 text-xs">
+                        <span className="text-green-400">✅ {epCheckResults.summary?.pass || 0}</span>
+                        <span className="text-yellow-400">⚠️ {epCheckResults.summary?.warn || 0}</span>
+                        <span className="text-red-400">❌ {epCheckResults.summary?.fail || 0}</span>
+                      </div>
+
+                      {/* 상세 결과 */}
+                      <div className="space-y-2">
+                        {(epCheckResults.results || []).map((r: any, idx: number) => (
+                          <div key={idx} className={`p-2 rounded-lg text-xs border ${
+                            r.status === 'pass' ? 'bg-green-900/10 border-green-900/30 text-green-400' :
+                            r.status === 'warn' ? 'bg-yellow-900/10 border-yellow-900/30 text-yellow-400' :
+                            'bg-red-900/10 border-red-900/30 text-red-400'
+                          }`}>
+                            <div className="font-bold">
+                              {r.status === 'pass' ? '✅' : r.status === 'warn' ? '⚠️' : '❌'} {r.rule}
+                            </div>
+                            <div className="text-gray-400 mt-0.5">{r.message}</div>
+                            {r.details && r.details.length > 0 && (
+                              <div className="mt-1 text-gray-500 text-[10px] space-y-0.5">
+                                {r.details.slice(0, 3).map((d: string, i: number) => (
+                                  <div key={i}>• {d}</div>
+                                ))}
+                                {r.details.length > 3 && <div>... 외 {r.details.length - 3}건</div>}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* EP 검사 비용 */}
+                      <div className="mt-3 text-xs text-gray-600 text-center">
+                        검사 비용: ${epCheckCost.toFixed(4)}
+                      </div>
+
+                      {/* 닫기 버튼 */}
+                      <button
+                        onClick={() => setEpCheckResults(null)}
+                        className="w-full mt-2 px-3 py-1.5 text-xs bg-murim-darker border border-murim-border text-gray-500 hover:text-white rounded-lg transition-colors"
+                      >
+                        패널 닫기
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 
@@ -904,8 +1326,8 @@ export default function Step6Page() {
             </div>
           </div>
 
-          {/* 하단 액션 바 */}
-          <div className="shrink-0 p-4 border-t border-murim-border">
+          {/* 하단 액션 바 (읽기 모드에서는 숨김) */}
+          <div className={`shrink-0 p-4 border-t border-murim-border ${pipelineStep === 'read' ? 'hidden' : ''}`}>
             <div className="flex items-center justify-between">
               {/* 좌측: 생성 버튼 */}
               <div className="flex items-center gap-3">
@@ -921,12 +1343,12 @@ export default function Step6Page() {
                   {isGenerating ? (
                     <>
                       <div className="w-5 h-5 border-2 border-gray-500 border-t-white rounded-full animate-spin" />
-                      AI 집필 중... ({AI_LEVEL_INFO[aiLevel].model})
+                      AI 집필 중... ({premiumMode ? 'B-프리미엄 2-pass' : `A-${AI_LEVEL_INFO[aiLevel].model}`})
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-5 h-5" />
-                      AI 생성 ({AI_LEVEL_INFO[aiLevel].name})
+                      AI 생성 ({premiumMode ? 'B-프리미엄' : `A-${AI_LEVEL_INFO[aiLevel].name}`})
                     </>
                   )}
                 </button>
@@ -999,6 +1421,12 @@ export default function Step6Page() {
                   <Save className="w-5 h-5" />
                   {isSaving ? '저장 중...' : '저장'}
                 </button>
+
+                {saveStatus && (
+                  <span className={`text-xs px-2 ${saveStatus.includes('✅') ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {saveStatus}
+                  </span>
+                )}
 
                 <button
                   onClick={handleExport}

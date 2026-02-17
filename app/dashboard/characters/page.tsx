@@ -165,13 +165,16 @@ export default function CharactersPage() {
             .order('id')
             .limit(1100); // 1000명 + 여유분
 
-          if (!error && data) {
-            // Supabase 응답이 정상이면 (0명이든 37명이든) 그대로 반영
+          if (!error && data && data.length > 0) {
+            // Supabase에 데이터가 있으면 사용
             setCharacters(data);
             localStorage.setItem('novel_characters', JSON.stringify(data));
             console.log(`✅ Supabase에서 ${data.length}명 로드 완료`);
             setLoading(false);
-            return; // ← Supabase가 정상이면 localStorage 무시
+            return;
+          } else if (data && data.length === 0) {
+            // Supabase가 비어있으면 localStorage로 폴백
+            console.warn('⚠️ Supabase 비어있음 (0명), localStorage로 대체');
           } else if (error) {
             console.warn('⚠️ Supabase 로드 실패, localStorage로 대체:', error.message);
           }
