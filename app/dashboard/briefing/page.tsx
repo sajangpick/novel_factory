@@ -196,13 +196,13 @@ export default function BriefingPage() {
             const nameList = match[1]
               .replace(/등$/, '') // "한소검 등" 에서 "등" 제거
               .split(/[,，]/) // 쉼표로 분리
-              .map(n => n.trim())
-              .filter(n => n && n !== '—' && !n.startsWith('1~') && !n.startsWith('약'));
+              .map((n: string) => n.trim())
+              .filter((n: string) => n && n !== '—' && !n.startsWith('1~') && !n.startsWith('약'));
             names.push(...nameList);
           }
         }
         // 중복 제거 후 저장
-        const unique = [...new Set(names)].filter(n => n.length >= 2);
+        const unique = [...new Set(names)].filter((n: string) => n.length >= 2);
         setAllCharacterNames(unique);
       }
     } catch {
