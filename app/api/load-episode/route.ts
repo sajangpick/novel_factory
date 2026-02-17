@@ -31,8 +31,8 @@ export async function GET(req: NextRequest) {
 
       if (existsSync(OUTPUT_DIR)) {
         const files = readdirSync(OUTPUT_DIR)
-          .filter(f => f.match(/^제\d+화\.md$/))
-          .sort((a, b) => {
+          .filter((f: string) => f.match(/^제\d+화\.md$/))
+          .sort((a: string, b: string) => {
             const numA = parseInt(a.match(/\d+/)?.[0] || '0');
             const numB = parseInt(b.match(/\d+/)?.[0] || '0');
             return numA - numB;
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
         success: true,
         episodes,
         count: episodes.length,
-        maxEpisode: episodes.length > 0 ? Math.max(...episodes.map(e => e.number)) : 0,
+        maxEpisode: episodes.length > 0 ? Math.max(...episodes.map((e: any) => e.number)) : 0,
       });
     }
 
@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
     // ── 2순위: DB에서 읽기 (파일 없을 때) ──
     // ★ 단, 파일이 삭제된 경우 DB 폴백도 건너뜀 (삭제 의도 존중)
     // 파일이 한 번도 없었던 새 에피소드가 아니라, 삭제된 에피소드인지 확인
-    const wasDeleted = !existsSync(filePath) && readdirSync(OUTPUT_DIR).some(f => f.startsWith(`제${num}화_폐기`));
+    const wasDeleted = !existsSync(filePath) && readdirSync(OUTPUT_DIR).some((f: string) => f.startsWith(`제${num}화_폐기`));
     if (!content && !wasDeleted) {
       try {
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

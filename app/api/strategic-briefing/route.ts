@@ -99,9 +99,9 @@ export async function GET(req: NextRequest) {
     const episodeExists = existsSync(episodeFilePath);
 
     // 긴급/진행/보류 분류
-    const urgentThreads = plotThreads.filter(t => t.urgency === 'urgent');
-    const activeThreads = plotThreads.filter(t => t.urgency === 'active');
-    const deferredThreads = plotThreads.filter(t => t.urgency === 'deferred');
+    const urgentThreads = plotThreads.filter((t: any) => t.urgency === 'urgent');
+    const activeThreads = plotThreads.filter((t: any) => t.urgency === 'active');
+    const deferredThreads = plotThreads.filter((t: any) => t.urgency === 'deferred');
 
     return NextResponse.json({
       success: true,
@@ -225,8 +225,8 @@ export async function PUT(req: NextRequest) {
 
     // 활성 복선 파싱
     const plotThreads = parsePlotThreads(masterContent, nextEpisode);
-    const urgentThreads = plotThreads.filter(t => t.urgency === 'urgent');
-    const activeThreads = plotThreads.filter(t => t.urgency === 'active');
+    const urgentThreads = plotThreads.filter((t: any) => t.urgency === 'urgent');
+    const activeThreads = plotThreads.filter((t: any) => t.urgency === 'active');
 
     // 스토리 바이블 계획
     const plannedContent = getPlannedEpisodeFromBible(bibleContent, nextEpisode);
@@ -263,10 +263,10 @@ export async function PUT(req: NextRequest) {
 - 3인격: ${currentState.personality3Status || '미정'}
 
 ## 긴급 복선 (이번 화에서 처리 필요)
-${urgentThreads.length > 0 ? urgentThreads.map(t => `- [${t.grade}등급] ${t.content} (목표: ${t.targetEpisode})`).join('\n') : '없음'}
+${urgentThreads.length > 0 ? urgentThreads.map((t: any) => `- [${t.grade}등급] ${t.content} (목표: ${t.targetEpisode})`).join('\n') : '없음'}
 
 ## 진행 중 복선
-${activeThreads.length > 0 ? activeThreads.map(t => `- [${t.grade}등급] ${t.content}`).join('\n') : '없음'}
+${activeThreads.length > 0 ? activeThreads.map((t: any) => `- [${t.grade}등급] ${t.content}`).join('\n') : '없음'}
 
 ## 스토리 바이블 계획
 ${plannedContent || '해당 화의 구체적 바이블 계획이 테이블에 없습니다. 위의 활성 복선 범위 안에서만 자연스럽게 이어가세요. ★ 새로운 사건·캐릭터·세력을 임의로 도입하지 마세요.'}
@@ -378,7 +378,7 @@ THREAD_USE|이번 화에서 다룰 복선과 처리법 (예: V3-01 힌트 투하
 
 /** AI 제안 응답 파싱 — 4방향 + 연출 변수 포함 */
 function parseAISuggestions(raw: string) {
-  const lines = raw.split('\n').filter(l => l.trim());
+  const lines = raw.split('\n').filter((l: string) => l.trim());
 
   // 방향 A/B/C/D (제목, 설명, 핵심장면, 캐릭터비중, 이유)
   const dirs: Record<string, { title: string; description: string; scenes: string; characters: string; reason: string }> = {
@@ -468,7 +468,7 @@ function parseAISuggestions(raw: string) {
     casting = castingRaw.split(',').map(item => {
       const [name, role] = item.trim().split(':');
       return { name: name?.trim() || '', role: role?.trim() || '조연' };
-    }).filter(c => c.name);
+    }).filter((c: any) => c.name);
   }
 
   // 3인격 비중 파싱: "위소운:40,천마:35,이준혁:25" → {wisoun, chunma, junhyuk}
@@ -800,7 +800,7 @@ export async function DELETE(req: NextRequest) {
     // ★ §8 아카이브에 "⏸️ 보류" 태그로 추가 (나중에 자동 복원 대상)
     // §8 "[보류 떡밥 아카이브]" 섹션을 찾거나 생성
     const archiveHeader = '### [보류 떡밥 아카이브]';
-    const archiveIdx = newLines.findIndex(l => l.includes(archiveHeader));
+    const archiveIdx = newLines.findIndex((l: string) => l.includes(archiveHeader));
 
     // 보류 행 생성: 원래 테이블 행에서 상태를 ⏸️ 보류로 변경
     const pausedLine = removedLine.replace(/🔴|🟡|✅/g, '⏸️');
@@ -811,7 +811,7 @@ export async function DELETE(req: NextRequest) {
     } else {
       // 보류 섹션이 없으면 §8 끝에 생성
       // "## 업데이트 규칙" 줄 바로 위에 삽입
-      const updateRuleIdx = newLines.findIndex(l => l.startsWith('## 업데이트 규칙'));
+      const updateRuleIdx = newLines.findIndex((l: string) => l.startsWith('## 업데이트 규칙'));
       if (updateRuleIdx >= 0) {
         newLines.splice(updateRuleIdx, 0,
           archiveHeader,
@@ -867,7 +867,7 @@ export async function PATCH(req: NextRequest) {
       const lines = masterText.split('\n');
 
       // §2 시작 줄 찾기 (# §2.)
-      const s2Start = lines.findIndex(l => l.startsWith('# §2'));
+      const s2Start = lines.findIndex((l: string) => l.startsWith('# §2'));
       if (s2Start < 0) {
         return NextResponse.json({ success: false, message: '§2 섹션을 찾을 수 없습니다' }, { status: 404 });
       }

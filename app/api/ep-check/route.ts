@@ -98,7 +98,7 @@ function localCheck(content: string, episodeNumber: number) {
   const yearPattern = /\d{3,4}년/g;
   const yearMatches = content.match(yearPattern) || [];
   // "제13화" 같은 화수는 제외
-  const realYears = yearMatches.filter(m => !m.startsWith('제'));
+  const realYears = yearMatches.filter((m: string) => !m.startsWith('제'));
   if (realYears.length > 0) {
     results.push({
       rule: 'EP-003 서기 연도',
@@ -220,9 +220,9 @@ export async function POST(req: NextRequest) {
 
     // ── 결과 합산 ──
     const allResults = [...localResults, ...aiResults];
-    const failCount = allResults.filter(r => r.status === 'fail').length;
-    const warnCount = allResults.filter(r => r.status === 'warn').length;
-    const passCount = allResults.filter(r => r.status === 'pass').length;
+    const failCount = allResults.filter((r: any) => r.status === 'fail').length;
+    const warnCount = allResults.filter((r: any) => r.status === 'warn').length;
+    const passCount = allResults.filter((r: any) => r.status === 'pass').length;
 
     // 점수 계산 (100점 만점)
     const totalChecks = allResults.length;

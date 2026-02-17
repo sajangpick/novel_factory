@@ -151,19 +151,19 @@ async function localSearch(
   }
 
   // .md 파일 목록
-  let mdFiles = fs.readdirSync(worldDbPath).filter(f => f.endsWith('.md'));
+  let mdFiles = fs.readdirSync(worldDbPath).filter((f: string) => f.endsWith('.md'));
 
   // fileHints가 있으면 관련 파일 우선 정렬
   if (fileHints && fileHints.length > 0) {
     mdFiles.sort((a, b) => {
-      const aMatch = fileHints.some(h => a.includes(h)) ? 0 : 1;
-      const bMatch = fileHints.some(h => b.includes(h)) ? 0 : 1;
+      const aMatch = fileHints.some((h: string) => a.includes(h)) ? 0 : 1;
+      const bMatch = fileHints.some((h: string) => b.includes(h)) ? 0 : 1;
       return aMatch - bMatch;
     });
   }
 
   // 검색어 분해
-  const queryWords = query.toLowerCase().split(/[\s,]+/).filter(w => w.length > 0);
+  const queryWords = query.toLowerCase().split(/[\s,]+/).filter((w: string) => w.length > 0);
   const results: SearchResult[] = [];
 
   for (const file of mdFiles) {
@@ -206,7 +206,7 @@ async function localSearch(
       if (textLower.includes(query.toLowerCase())) score += 5;
 
       // fileHint 보너스
-      if (fileHints && fileHints.some(h => docName.includes(h))) score += 3;
+      if (fileHints && fileHints.some((h: string) => docName.includes(h))) score += 3;
 
       if (score > 0) {
         results.push({
@@ -261,7 +261,7 @@ export async function GET() {
       return NextResponse.json({ documents: [], count: 0 });
     }
 
-    const mdFiles = fs.readdirSync(worldDbPath).filter(f => f.endsWith('.md'));
+    const mdFiles = fs.readdirSync(worldDbPath).filter((f: string) => f.endsWith('.md'));
     const documents = mdFiles.map(file => {
       const filePath = path.join(worldDbPath, file);
       const stat = fs.statSync(filePath);

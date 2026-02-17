@@ -81,11 +81,11 @@ export async function GET() {
       // Supabase 미설정 시 로컬 파일 목록 반환
       const worldDbDir = path.join(process.cwd(), 'novels', 'murim_mna', 'world_db');
       const files = await fs.readdir(worldDbDir);
-      const mdFiles = files.filter(f => f.endsWith('.md'));
+      const mdFiles = files.filter((f: string) => f.endsWith('.md'));
       return NextResponse.json({ 
         count: mdFiles.length, 
         source: 'local',
-        files: mdFiles.map(f => f.replace('.md', ''))
+        files: mdFiles.map((f: string) => f.replace('.md', ''))
       });
     }
 
@@ -141,7 +141,7 @@ export async function POST(request: Request) {
     // [3] 전체 스캔: novels/murim_mna/world_db/*.md 파일 목록
     if (targetFiles.length === 0) {
       const allFiles = await fs.readdir(worldDbDir);
-      targetFiles = allFiles.filter(f => f.endsWith('.md'));
+      targetFiles = allFiles.filter((f: string) => f.endsWith('.md'));
     }
 
     console.log(`📂 동기화 대상: ${targetFiles.length}개 파일`);

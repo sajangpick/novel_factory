@@ -98,11 +98,11 @@ function extractStyleReference(outputDir: string, latestEpisode: number): string
     const cutIdx = body.indexOf('## [🎬 영상화 메모]');
     if (cutIdx > 0) body = body.substring(0, cutIdx);
 
-    const lines = body.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const lines = body.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
     for (const line of lines) {
       if (line.startsWith('#') || line.startsWith('>') || line.startsWith('|')) continue;
       // 짧고 감각적인 문장 (15~50자)
-      if (line.length >= 15 && line.length <= 50 && sensoryWords.some(w => line.includes(w))) {
+      if (line.length >= 15 && line.length <= 50 && sensoryWords.some((w: string) => line.includes(w))) {
         samples.push(line);
       }
       // 매우 짧고 임팩트 있는 문장 (5~15자)
@@ -388,7 +388,7 @@ async function aiEditor(
   geminiKey: string,
   callAIFn: (prompt: string, tokens: number) => Promise<string>
 ): Promise<{ text: string; improved: number; totalParagraphs: number }> {
-  const paragraphs = generatedText.split(/\n\n+/).filter(p => p.trim().length > 20);
+  const paragraphs = generatedText.split(/\n\n+/).filter((p: string) => p.trim().length > 20);
   if (paragraphs.length < 3) {
     return { text: generatedText, improved: 0, totalParagraphs: paragraphs.length };
   }
@@ -434,7 +434,7 @@ P2|점수|한줄 피드백
 
   // ★ v2: 2점 이하만 교정 (3점은 "보통"이므로 OK — 흐름 보존 우선)
   const weakParagraphs: { index: number; score: number; feedback: string }[] = [];
-  for (const sl of scoreRaw.split('\n').filter(l => l.trim().match(/^P\d+\|/))) {
+  for (const sl of scoreRaw.split('\n').filter((l: string) => l.trim().match(/^P\d+\|/))) {
     const parts = sl.split('|');
     const pNum = parseInt(parts[0]?.replace('P', '')) - 1;
     const score = parseInt(parts[1]?.trim());
@@ -710,9 +710,9 @@ BEAT|2|소연화 전복죽|500|설렘, 감사|죽을 만들어 가져옴, 따뜻
 
       // 비트 파싱
       const beats: { num: number; scene: string; targetChars: number; emotion: string; events: string; ending: string }[] = [];
-      const beatLines = beatPlanRaw.split('\n').filter(l => l.trim().startsWith('BEAT|'));
+      const beatLines = beatPlanRaw.split('\n').filter((l: string) => l.trim().startsWith('BEAT|'));
       for (const bLine of beatLines) {
-        const parts = bLine.split('|').map(s => s.trim());
+        const parts = bLine.split('|').map((s: string) => s.trim());
         if (parts.length >= 7) {
           beats.push({
             num: parseInt(parts[1]) || beats.length + 1,
@@ -727,7 +727,7 @@ BEAT|2|소연화 전복죽|500|설렘, 감사|죽을 만들어 가져옴, 따뜻
 
       if (beats.length >= 3) {
         console.log(`📋 비트 설계 완료: ${beats.length}개 비트`);
-        beats.forEach(b => console.log(`  ${b.num}. ${b.scene} (${b.targetChars}자, ${b.emotion})`));
+        beats.forEach((b: { num: number; scene: string; targetChars: number; emotion: string }) => console.log(`  ${b.num}. ${b.scene} (${b.targetChars}자, ${b.emotion})`));
 
         // Phase 2: 비트별 생성 — 각 비트에 '연출 지시'를 넣어 초정밀 생성
         let accumulated = '';
@@ -911,7 +911,7 @@ ${generatedText}
       mustAvoidPhrases.push('술을 ', '술잔', '술상', '음주', '만취', '주점', '소흥주', '백주', '해장국');
     }
 
-    const forbiddenHits = mustAvoidPhrases.filter(p => generatedText.includes(p));
+    const forbiddenHits = mustAvoidPhrases.filter((p: string) => generatedText.includes(p));
     // ★ v3: 최소 분량 기준 — 목표 5,000자 기준 절반 이하면 재생성
     const tooShort = generatedText.replace(/\s+/g, '').length < 3000 && section === 'full';
 
@@ -920,7 +920,7 @@ ${generatedText}
     if (forbiddenHits.length > 0 || tooShort) {
       console.log(`⚠️ 품질 게이트 미통과 (금지: [${forbiddenHits.join(',')}], 짧음: ${tooShort}) → 재생성`);
 
-      const retryPrompt = `${prompt}\n\n[재작성 지시]\n${forbiddenHits.length > 0 ? `아래 금지 문구가 포함되었습니다. 절대 쓰지 마세요:\n${forbiddenHits.map(s => `- ${s}`).join('\n')}` : ''}\n${tooShort ? '분량이 심각하게 부족합니다. 최소 4,500자 이상 작성하세요. 목표는 5,000자입니다.' : ''}`;
+      const retryPrompt = `${prompt}\n\n[재작성 지시]\n${forbiddenHits.length > 0 ? `아래 금지 문구가 포함되었습니다. 절대 쓰지 마세요:\n${forbiddenHits.map((s: string) => `- ${s}`).join('\n')}` : ''}\n${tooShort ? '분량이 심각하게 부족합니다. 최소 4,500자 이상 작성하세요. 목표는 5,000자입니다.' : ''}`;
 
       let retryText = '';
       // 재생성도 같은 Level 모델 사용 (비용 예측 가능)
@@ -965,7 +965,7 @@ ${generatedText}
       }
     }
 
-    const finalForbidden = mustAvoidPhrases.filter(p => generatedText.includes(p));
+    const finalForbidden = mustAvoidPhrases.filter((p: string) => generatedText.includes(p));
     console.log(`✅ 제${episodeNumber}화 생성 완료 (${generatedText.length}자, 금지문구: ${finalForbidden.length}건, 자동교정: ${postResult.corrections.length}건)`);
 
     // ── 비용 계산 (한국어 ~3자 = 1토큰 기준 추정) ──
