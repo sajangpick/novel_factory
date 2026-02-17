@@ -312,7 +312,7 @@ async function callClaude(apiKey: string, prompt: string, maxTokens: number): Pr
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: maxTokens,
       temperature: 0.7,
       system: '당신은 무협 웹소설 전문 작가이자 MBA 경영 컨설턴트입니다. 한국어로 작성합니다.',

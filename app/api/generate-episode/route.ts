@@ -500,7 +500,7 @@ const AI_LEVELS: Record<number, {
   priceOutput: number;  // USD per 백만 토큰
 }> = {
   1: { name: 'Lv.1 초안 (Gemini 3 Pro)',    provider: 'gemini', model: 'gemini-3-pro-preview',               priceInput: 2.00,  priceOutput: 12.00 },
-  2: { name: 'Lv.2 다듬기 (Claude Sonnet)', provider: 'claude', model: 'claude-3-5-sonnet-20241022', priceInput: 3.00,  priceOutput: 15.00 },
+  2: { name: 'Lv.2 다듬기 (Claude Sonnet 4.5)', provider: 'claude', model: 'claude-sonnet-4-5-20250929', priceInput: 3.00,  priceOutput: 15.00 },
   3: { name: 'Lv.3 최종 (Claude Opus)',     provider: 'claude', model: 'claude-3-opus-20240229',     priceInput: 15.00, priceOutput: 75.00 },
 };
 
@@ -888,10 +888,10 @@ ${generatedText}
 [지시]
 위 기준으로 퇴고한 완성본을 출력하세요. 원문의 스토리와 구성은 100% 유지하고, 문장과 표현만 다듬으세요.`;
 
-        const refinedText = await callClaude(claudeKey, refinePrompt, maxTokens, 'claude-sonnet-4-20250514');
+        const refinedText = await callClaude(claudeKey, refinePrompt, maxTokens, 'claude-sonnet-4-5-20250929');
         if (refinedText && refinedText.length > generatedText.length * 0.7) {
           generatedText = refinedText;
-          usedModel += ' → claude-sonnet-4(퇴고)';
+          usedModel += ' → claude-sonnet-4.5(퇴고)';
           pass2Applied = true;
           console.log(`✅ [B모드] 2-pass 퇴고 완료 (${refinedText.length}자)`);
         }
@@ -1217,7 +1217,7 @@ async function callOpenAI(apiKey: string, prompt: string, maxTokens: number): Pr
   return String(data?.choices?.[0]?.message?.content || '').trim();
 }
 
-async function callClaude(apiKey: string, prompt: string, maxTokens: number, model: string = 'claude-3-5-sonnet-20241022', temperature: number = 0.85): Promise<string> {
+async function callClaude(apiKey: string, prompt: string, maxTokens: number, model: string = 'claude-sonnet-4-5-20250929', temperature: number = 0.85): Promise<string> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {

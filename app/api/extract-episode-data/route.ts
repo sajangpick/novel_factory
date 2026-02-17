@@ -247,7 +247,7 @@ async function callClaude(apiKey: string, prompt: string, maxTokens: number): Pr
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: maxTokens,
       temperature: 0.2,
       system: '당신은 소설 데이터 분석 전문가입니다. 반드시 JSON 형식으로만 응답하세요.',

@@ -340,7 +340,7 @@ THREAD_USE|이번 화에서 다룰 복선과 처리법 (예: V3-01 힌트 투하
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-5-20250929',
         max_tokens: 6000,
         temperature: 0.7,
         messages: [{ role: 'user', content: aiPrompt }],

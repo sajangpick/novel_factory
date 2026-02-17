@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
         validation: { hasSection1, hasSection2, hasSection7, hasEpNumber },
       },
       costInfo: {
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-5-20250929',
         estimatedCostUSD: Math.round(estCost * 10000) / 10000,
       },
     });
@@ -195,7 +195,7 @@ async function callClaude(apiKey: string, prompt: string, maxTokens: number): Pr
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: maxTokens,
       temperature: 0.3, // 낮은 온도 = 정확한 업데이트
       messages: [{ role: 'user', content: prompt }],
