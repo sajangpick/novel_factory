@@ -60,11 +60,57 @@ interface BriefingData {
   episodeExists: boolean;
 }
 
+// ── Supabase 대시보드 데이터 (현재 상태 실시간) ──
+interface DashboardData {
+  latest_episode: number;
+  story_date: string;
+  current_location: string;
+  season: string;
+  weather: string;
+  mc_health: string;
+  mc_martial_rank: string;
+  mc_internal_energy: string;
+  mc_money: string;
+  mc_emotion: string;
+  mc_current_goal: string;
+  mc_injury: string;
+  mc_available_skills: any;
+  three_personality: any;
+  personality_conflict: string;
+  org_name: string;
+  total_assets: number;
+  active_foreshadows: any;
+  latest_combat: string;
+  next_cautions: string;
+  updated_at: string;
+}
+
+// ── 기억 카드 (최근 화별 요약) ──
+interface MemoryCard {
+  id: number;
+  episode_number: number;
+  episode_title: string;
+  dominant_personality: string;
+  what_summary: string;
+  why_summary: string;
+  foreshadow_planted: string;
+  foreshadow_resolved: string;
+  personality_conflict: string;
+  personality_growth: string;
+  key_dialogue: string;
+  cliffhanger: string;
+  next_caution: string;
+}
+
 export default function BriefingPage() {
   // ── 상태 관리 ──
   const [briefing, setBriefing] = useState<BriefingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // ── Supabase 대시보드 + 기억 카드 (실시간 데이터) ──
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [recentCards, setRecentCards] = useState<MemoryCard[]>([]);
   
   // 사용자 선택 — 방향 4개 (A/B/C/D)
   const [directionA, setDirectionA] = useState('');
@@ -214,8 +260,26 @@ export default function BriefingPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/strategic-briefing');
-      const data = await res.json();
+      // 마스터 파일 브리핑 + Supabase 대시보드 + 기억 카드를 동시에 로드
+      const [briefRes, dashRes, cardsRes] = await Promise.all([
+        fetch('/api/strategic-briefing'),
+        fetch('/api/novel-dashboard').catch(() => null),
+        fetch('/api/memory-card?recent=3').catch(() => null),
+      ]);
+
+      // Supabase 대시보드 데이터 처리
+      if (dashRes?.ok) {
+        const dashData = await dashRes.json();
+        if (dashData.success && dashData.dashboard) setDashboard(dashData.dashboard);
+      }
+
+      // 기억 카드 처리
+      if (cardsRes?.ok) {
+        const cardsData = await cardsRes.json();
+        if (cardsData.success) setRecentCards(cardsData.cards || []);
+      }
+
+      const data = await briefRes.json();
       
       if (data.success) {
         setBriefing(data.briefing);
@@ -371,7 +435,7 @@ export default function BriefingPage() {
 
     // ★ 이미 제안이 존재하면 확인 경고 — 실수로 다시 눌러서 비용 낭비 방지
     const hasExistingDirections = directionA || directionB || directionC || directionD;
-    const hasExistingCliffs = cliff1 || cliff2 || cliff3;
+    const hasExistingCliffs = cliffhangers[0] || cliffhangers[1] || cliffhangers[2];
     if (hasExistingDirections || hasExistingCliffs || aiSuggestions) {
       const confirmed = confirm(
         '⚠️ 이미 AI 제안이 존재합니다!\n\n' +
@@ -529,20 +593,157 @@ export default function BriefingPage() {
       </div>
 
       <div className="p-6 space-y-6">
-        {/* ━━━ 1. 현재 상태 요약 ━━━ */}
+        {/* ━━━ 1. 현재 상태 요약 (Supabase 실시간 + 마스터 파일) ━━━ */}
         <section className="bg-murim-dark rounded-xl border border-murim-border p-5">
           <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-murim-gold" />
             현재 상태 (제{briefing.currentState.latestEpisode}화 완료 시점)
+            {dashboard && (
+              <span className="text-[10px] font-normal text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full ml-2">
+                실시간 DB 연동
+              </span>
+            )}
           </h2>
+
+          {/* 기본 상태 (마스터 파일 기반) */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            <StateCard label="작중 시간" value={briefing.currentState.inWorldDate} />
-            <StateCard label="위치" value={briefing.currentState.location} />
-            <StateCard label="건강" value={briefing.currentState.health} />
-            <StateCard label="무공 등급" value={briefing.currentState.martialLevel} />
+            <StateCard label="작중 시간" value={dashboard?.story_date || briefing.currentState.inWorldDate} />
+            <StateCard label="위치" value={dashboard?.current_location || briefing.currentState.location} />
+            <StateCard label="건강" value={dashboard?.mc_health || briefing.currentState.health} />
+            <StateCard label="무공 등급" value={dashboard?.mc_martial_rank || briefing.currentState.martialLevel} />
             <StateCard label="3인격" value={briefing.currentState.personality3Status} />
+            {dashboard?.season && <StateCard label="계절/날씨" value={`${dashboard.season} ${dashboard.weather || ''}`} />}
           </div>
+
+          {/* Supabase 확장 정보 (대시보드에만 있는 데이터) */}
+          {dashboard && (
+            <div className="mt-3 pt-3 border-t border-murim-border/50">
+              <p className="text-[10px] text-murim-gold font-bold mb-2 uppercase tracking-wider">확장 정보 (Supabase)</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {dashboard.mc_emotion && <MiniCard label="감정" value={dashboard.mc_emotion} color="pink" />}
+                {dashboard.mc_current_goal && <MiniCard label="현재 목표" value={dashboard.mc_current_goal} color="blue" />}
+                {dashboard.mc_money && <MiniCard label="소지금" value={dashboard.mc_money} color="yellow" />}
+                {dashboard.mc_internal_energy && <MiniCard label="내공" value={dashboard.mc_internal_energy} color="cyan" />}
+                {dashboard.mc_injury && <MiniCard label="부상" value={dashboard.mc_injury} color="red" />}
+                {dashboard.org_name && <MiniCard label="조직" value={dashboard.org_name} color="green" />}
+                {dashboard.total_assets ? <MiniCard label="총 자산" value={`${dashboard.total_assets.toLocaleString()}냥`} color="yellow" /> : null}
+                {dashboard.latest_combat && <MiniCard label="최근 전투" value={dashboard.latest_combat} color="red" />}
+              </div>
+            </div>
+          )}
+
+          {/* 불일치 경고 (마스터 파일 vs Supabase) */}
+          {dashboard && (() => {
+            const mismatches: { field: string; master: string; db: string }[] = [];
+            if (briefing.currentState.location && dashboard.current_location &&
+                !dashboard.current_location.includes(briefing.currentState.location) &&
+                !briefing.currentState.location.includes(dashboard.current_location)) {
+              mismatches.push({ field: '위치', master: briefing.currentState.location, db: dashboard.current_location });
+            }
+            if (briefing.currentState.health && dashboard.mc_health &&
+                !dashboard.mc_health.includes(briefing.currentState.health) &&
+                !briefing.currentState.health.includes(dashboard.mc_health)) {
+              mismatches.push({ field: '건강', master: briefing.currentState.health, db: dashboard.mc_health });
+            }
+            if (briefing.currentState.martialLevel && dashboard.mc_martial_rank &&
+                !dashboard.mc_martial_rank.includes(briefing.currentState.martialLevel) &&
+                !briefing.currentState.martialLevel.includes(dashboard.mc_martial_rank)) {
+              mismatches.push({ field: '무공 등급', master: briefing.currentState.martialLevel, db: dashboard.mc_martial_rank });
+            }
+            if (mismatches.length === 0) return null;
+            return (
+              <div className="mt-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+                <p className="text-xs font-bold text-orange-400 mb-1.5 flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  마스터 파일과 DB 불일치 감지 ({mismatches.length}건)
+                </p>
+                <div className="space-y-1">
+                  {mismatches.map((m, i) => (
+                    <p key={i} className="text-[11px] text-gray-300">
+                      <span className="text-orange-300 font-medium">{m.field}</span>:
+                      마스터=<span className="text-gray-400">&quot;{m.master}&quot;</span> vs
+                      DB=<span className="text-cyan-400">&quot;{m.db}&quot;</span>
+                    </p>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">* DB 데이터가 더 최신일 수 있습니다</p>
+              </div>
+            );
+          })()}
         </section>
+
+        {/* ━━━ 1.5 최근 화 패턴 (기억 카드 구조화) ━━━ */}
+        {recentCards.length > 0 && (
+          <section className="bg-murim-dark rounded-xl border border-purple-500/20 p-5">
+            <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
+              <Zap className="w-5 h-5 text-purple-400" />
+              최근 화 패턴 분석
+              <span className="text-[10px] font-normal text-gray-500 ml-2">기억 카드 {recentCards.length}화 기반</span>
+            </h2>
+
+            {/* 인격 추세 */}
+            <div className="mb-3">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">인격 우세 추세</p>
+              <div className="flex gap-2">
+                {recentCards.map(card => (
+                  <div key={card.id} className="flex-1 text-center p-2 bg-murim-darker rounded-lg">
+                    <p className="text-[10px] text-gray-500">제{card.episode_number}화</p>
+                    <p className={`text-xs font-bold ${
+                      card.dominant_personality?.includes('천마') ? 'text-red-400' :
+                      card.dominant_personality?.includes('이준혁') ? 'text-green-400' :
+                      'text-blue-400'
+                    }`}>
+                      {card.dominant_personality || '-'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 최근 복선/클리프행어 */}
+            <div className="grid md:grid-cols-2 gap-3">
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">최근 심은 복선</p>
+                <div className="space-y-1">
+                  {recentCards.filter(c => c.foreshadow_planted).map(card => (
+                    <p key={card.id} className="text-[11px] text-gray-300 bg-murim-darker rounded px-2 py-1">
+                      <span className="text-purple-400 font-mono">#{card.episode_number}</span> {card.foreshadow_planted}
+                    </p>
+                  ))}
+                  {recentCards.every(c => !c.foreshadow_planted) && (
+                    <p className="text-[11px] text-gray-600">최근 심은 복선 없음</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">최근 클리프행어</p>
+                <div className="space-y-1">
+                  {recentCards.filter(c => c.cliffhanger).map(card => (
+                    <p key={card.id} className="text-[11px] text-gray-300 bg-murim-darker rounded px-2 py-1">
+                      <span className="text-orange-400 font-mono">#{card.episode_number}</span> {card.cliffhanger}
+                    </p>
+                  ))}
+                  {recentCards.every(c => !c.cliffhanger) && (
+                    <p className="text-[11px] text-gray-600">최근 클리프행어 없음</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 최근 핵심 요약 */}
+            <div className="mt-3 pt-3 border-t border-murim-border/30">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">최근 화 핵심 요약</p>
+              <div className="space-y-1.5">
+                {recentCards.map(card => (
+                  <div key={card.id} className="flex gap-2 text-[11px]">
+                    <span className="text-murim-accent font-bold whitespace-nowrap">제{card.episode_number}화</span>
+                    <span className="text-gray-400">{card.what_summary || card.episode_title || '-'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ━━━ 2. 긴급 떡밥 ━━━ */}
         <section className="bg-murim-dark rounded-xl border border-red-500/30 p-5">
@@ -1314,6 +1515,20 @@ function StateCard({ label, value }: { label: string; value: string }) {
     <div className="bg-murim-darker rounded-lg p-3">
       <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{label}</p>
       <p className="text-sm text-gray-300 leading-snug">{value}</p>
+    </div>
+  );
+}
+
+/** 확장 정보 미니 카드 (Supabase 대시보드 데이터용) */
+function MiniCard({ label, value, color }: { label: string; value: string; color: string }) {
+  const colorMap: Record<string, string> = {
+    pink: 'text-pink-400', blue: 'text-blue-400', yellow: 'text-yellow-400',
+    cyan: 'text-cyan-400', red: 'text-red-400', green: 'text-green-400',
+  };
+  return (
+    <div className="bg-murim-darker/70 rounded px-2.5 py-1.5">
+      <p className="text-[9px] text-gray-600 uppercase">{label}</p>
+      <p className={`text-[11px] font-medium truncate ${colorMap[color] || 'text-gray-300'}`}>{value}</p>
     </div>
   );
 }

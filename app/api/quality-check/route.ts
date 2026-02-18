@@ -48,16 +48,13 @@ function runAutoQualityGate(text: string, episodeNumber: number): {
   const results: AutoCheckResult[] = [];
   const warnings: string[] = [];
 
-  // ── 금지 문구 체크 (legacy: mustAvoid) ──
+  // ── 금지 문구 체크 ──
   const mustAvoidPhrases = [
-    '띠링', '조건이 충족되었습니다', '상태창',  // 상태창/시스템 UI
-    '아메리카노', '오케이', '팩트 체크',        // 현대어
+    '띠링', '조건이 충족되었습니다', '상태창',
+    '아메리카노', '오케이', '팩트 체크',
+    'M&A', 'CEO', 'ROI', 'KPI', 'MBA', 'MOU', 'IPO', 'B2B', 'B2C',
+    '파트너십', '인프라', '프레젠테이션',
   ];
-  // 초반 안전장치 (legacy: earlyHardBans)
-  const isEarly = episodeNumber <= 30;
-  if (isEarly) {
-    mustAvoidPhrases.push('술', '주점', '소흥주', '백주', '해장국');
-  }
   const forbiddenHits = mustAvoidPhrases.filter(p => text.includes(p));
 
   // ── 스타일 카테고리 (10개) ──

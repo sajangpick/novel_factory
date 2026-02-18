@@ -969,8 +969,37 @@ export default function Step6Page() {
                     >
                       🔧 작업 도구
                     </button>
-                    {/* 14화 이상만 폐기 가능 (1~13화 원본 보호) */}
-                    {episodeNumber > 13 && (
+                    {/* ★ 에피소드 확정 버튼 — AI 분석 → 기억카드 + 대시보드 자동 업데이트 */}
+                    <button
+                      onClick={async () => {
+                        if (!content || content.length < 100) { alert('본문이 너무 짧습니다.'); return; }
+                        if (!confirm(`제${episodeNumber}화를 확정하시겠습니까?\n\nAI가 본문을 분석하여 기억 카드와 대시보드를 자동 업데이트합니다.`)) return;
+                        setIsSaving(true);
+                        try {
+                          const res = await fetch('/api/confirm-episode', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ episodeNumber }),
+                          });
+                          const data = await res.json();
+                          if (data.success) {
+                            alert(`✅ 제${episodeNumber}화 확정 완료!\n기억 카드 + 대시보드가 업데이트되었습니다.`);
+                          } else {
+                            alert(`❌ 확정 실패: ${data.error}`);
+                          }
+                        } catch (err: any) {
+                          alert(`❌ 오류: ${err.message}`);
+                        } finally {
+                          setIsSaving(false);
+                        }
+                      }}
+                      disabled={isSaving || !content}
+                      className="px-3 py-1.5 text-xs bg-green-900/40 border border-green-600 text-green-400 hover:bg-green-900/60 hover:text-green-300 rounded-lg transition-colors font-bold disabled:opacity-50"
+                    >
+                      {isSaving ? '⏳ AI 분석중...' : '✅ 확정하기'}
+                    </button>
+                    {/* 본문이 있는 에피소드만 폐기 가능 */}
+                    {content && (
                       <button
                         onClick={async () => {
                           if (!confirm(`제${episodeNumber}화를 폐기하시겠습니까?\n(파일은 복원 가능하게 보관됩니다)`)) return;

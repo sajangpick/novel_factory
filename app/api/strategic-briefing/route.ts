@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -64,8 +65,33 @@ export async function GET(req: NextRequest) {
       }, { status: 404 });
     }
 
-    // §1에서 현재 상태 파싱
+    // §1에서 현재 상태 파싱 + DB와 비교하여 최신 화 결정
     const currentState = parseCurrentState(masterContent);
+
+    // ★ Supabase DB의 latest_episode와 비교 — DB가 더 최신이면 DB 우선
+    if (isSupabaseConfigured) {
+      try {
+        const { data: dashData } = await supabase
+          .from('novel_dashboard')
+          .select('latest_episode, story_date, current_location, mc_health, mc_martial_rank, mc_emotion, mc_current_goal, mc_injury, season, weather')
+          .eq('series_id', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')
+          .single();
+
+        if (dashData && dashData.latest_episode > currentState.latestEpisode) {
+          currentState.latestEpisode = dashData.latest_episode;
+        }
+        // DB 데이터가 더 풍부하면 보강
+        if (dashData) {
+          if (dashData.story_date && dashData.story_date !== '불명') currentState.inWorldDate = dashData.story_date;
+          if (dashData.current_location) currentState.location = dashData.current_location;
+          if (dashData.mc_health) currentState.health = dashData.mc_health;
+          if (dashData.mc_martial_rank && dashData.mc_martial_rank !== '불명') currentState.martialLevel = dashData.mc_martial_rank;
+        }
+      } catch (e) {
+        console.warn('⚠️ 브리핑: DB latest_episode 조회 실패 (마스터 파일 폴백):', e);
+      }
+    }
+
     const nextEpisode = requestedEpisode 
       ? parseInt(requestedEpisode) 
       : currentState.latestEpisode + 1;
@@ -249,19 +275,75 @@ export async function PUT(req: NextRequest) {
       recentContext = `\n=== 제${nextEpisode - 1}화 (마지막 부분) ===\n${trimmed}\n`;
     }
 
-    // AI 프롬프트 구성 — 4방향 + 연출 변수 포함
+    // ── Supabase에서 대시보드 + 기억 카드 가져오기 (AI 프롬프트 강화) ──
+    let dashboardContext = '';
+    let memoryCardContext = '';
+
+    if (isSupabaseConfigured) {
+      try {
+        const [dashResult, cardsResult] = await Promise.all([
+          supabase.from('novel_dashboard').select('*').order('updated_at', { ascending: false }).limit(1),
+          supabase.from('memory_cards').select('episode_number,episode_title,dominant_personality,what_summary,why_summary,who_summary,where_summary,how_summary,foreshadow_planted,foreshadow_resolved,relationship_change,asset_change,martial_change,personality_conflict,personality_growth,key_dialogue,cliffhanger,next_caution')
+            .eq('series_id', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')
+            .order('episode_number', { ascending: true }),
+        ]);
+
+        if (dashResult.data?.[0]) {
+          const d = dashResult.data[0];
+          dashboardContext = `
+## 실시간 대시보드 상태 (Supabase DB — 마스터 파일보다 정확)
+- 감정 상태: ${d.mc_emotion || '미정'}
+- 현재 목표: ${d.mc_current_goal || '미정'}
+- 소지금: ${d.mc_money || '미정'}
+- 내공: ${d.mc_internal_energy || '미정'}
+- 부상/후유증: ${d.mc_injury || '없음'}
+- 조직: ${d.org_name || '미정'}
+- 총 자산: ${d.total_assets ? d.total_assets.toLocaleString() + '냥' : '미정'}
+- 최근 전투: ${d.latest_combat || '없음'}
+- 계절/날씨: ${d.season || ''} ${d.weather || ''}
+- 주의사항: ${d.next_cautions || '없음'}`;
+        }
+
+        // ★ [v3] 전체 기억 카드 로딩 — 확정된 화가 늘면 자동 확장
+        if (cardsResult.data && cardsResult.data.length > 0) {
+          memoryCardContext = `\n## 🧠 전체 스토리 기억 (${cardsResult.data.length}화분 기억 카드)\n`;
+          for (const c of cardsResult.data) {
+            memoryCardContext += `### 제${c.episode_number}화: ${c.episode_title || ''}\n`;
+            if (c.what_summary) memoryCardContext += `- 핵심사건: ${c.what_summary}\n`;
+            if (c.where_summary) memoryCardContext += `- 장소: ${c.where_summary}\n`;
+            if (c.who_summary) memoryCardContext += `- 등장인물: ${c.who_summary}\n`;
+            if (c.relationship_change) memoryCardContext += `- 관계변화: ${c.relationship_change}\n`;
+            if (c.asset_change) memoryCardContext += `- 자산변동: ${c.asset_change}\n`;
+            if (c.martial_change) memoryCardContext += `- 무공변동: ${c.martial_change}\n`;
+            if (c.foreshadow_planted) memoryCardContext += `- 복선투하: ${c.foreshadow_planted}\n`;
+            if (c.foreshadow_resolved) memoryCardContext += `- 복선회수: ${c.foreshadow_resolved}\n`;
+            if (c.dominant_personality) memoryCardContext += `- 주도인격: ${c.dominant_personality}\n`;
+            if (c.key_dialogue) memoryCardContext += `- 핵심대사: "${c.key_dialogue}"\n`;
+            if (c.cliffhanger) memoryCardContext += `- 절단신공: ${c.cliffhanger}\n`;
+            memoryCardContext += '\n';
+          }
+          memoryCardContext += `★ 위 전체 기억을 분석하여:\n- 최근 우세했던 인격이 연속 반복되지 않게 배분\n- 클리프행어가 최근과 다른 유형이 되도록 제안\n- 아직 회수되지 않은 복선 우선 처리\n- 인물 관계 변화의 자연스러운 연장선 제안\n`;
+          console.log(`🧠 전략 브리핑: 기억 카드 ${cardsResult.data.length}화분 로딩 (${memoryCardContext.length.toLocaleString()}자)`);
+        }
+      } catch (err) {
+        console.log('Supabase 데이터 로드 실패 (AI 프롬프트에 미반영):', err);
+      }
+    }
+
+    // AI 프롬프트 구성 — 4방향 + 연출 변수 + 대시보드 데이터 포함
     const aiPrompt = `당신은 한국 무협 웹소설 "서구진 귀환편"의 전략 기획자입니다.
 주인공 위소운은 1인 3인격(위소운/이준혁/천마)을 가진 청년입니다.
 아래 정보를 분석하고, 제${nextEpisode}화의 방향 4가지, 클리프행어 3가지, 연출 변수를 제안하세요.
 
-## 현재 상태
+## 현재 상태 (마스터 파일)
 - 최신 완료 화: 제${currentState.latestEpisode}화
 - 작중 시간: ${currentState.inWorldDate || '미정'}
 - 위치: ${currentState.location || '미정'}
 - 건강: ${currentState.health || '미정'}
 - 무공: ${currentState.martialLevel || '미정'}
 - 3인격: ${currentState.personality3Status || '미정'}
-
+${dashboardContext}
+${memoryCardContext}
 ## 긴급 복선 (이번 화에서 처리 필요)
 ${urgentThreads.length > 0 ? urgentThreads.map((t: any) => `- [${t.grade}등급] ${t.content} (목표: ${t.targetEpisode})`).join('\n') : '없음'}
 

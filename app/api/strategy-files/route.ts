@@ -15,6 +15,7 @@ import { join } from 'path';
 
 // ── 허용된 전략 문서 목록 (보안: 이 목록 외 파일 접근 차단) ──
 const STRATEGY_FILES: Record<string, { path: string; label: string; description: string; editable: boolean }> = {
+  // ── 핵심 작업 문서 ──
   'master': {
     path: 'novels/murim_mna/소설_진행_마스터.md',
     label: '소설 진행 마스터',
@@ -28,21 +29,15 @@ const STRATEGY_FILES: Record<string, { path: string; label: string; description:
     editable: true,
   },
   'rules': {
-    path: 'novels/murim_mna/집필_규칙.md',
-    label: '집필 규칙',
-    description: 'EP 규칙 15개, 3인격 엔진, 말투 규칙, 금지어 목록',
-    editable: true,
-  },
-  'characters': {
-    path: 'novels/murim_mna/캐릭터_인명록.md',
-    label: '캐릭터 인명록',
-    description: '핵심 30명 + 단역 시스템 + 3인격 엔진 상세',
+    path: 'novels/murim_mna/집필_규칙_핵심.md',
+    label: '집필 규칙 핵심',
+    description: 'EP 규칙 15개, 말투, 코미디 쿼터, 위소운 약점, 소설체 규칙',
     editable: true,
   },
   'ref-index': {
-    path: 'system/참조자료_색인.md',
-    label: '참조자료 색인',
-    description: '작업별 필수 파일 안내 가이드',
+    path: 'novels/murim_mna/_파일_색인.md',
+    label: '파일 색인',
+    description: '35개 참조 파일 전체 지도 + 가나다 찾아보기',
     editable: false,
   },
   'novel-writing-rules': {
@@ -56,6 +51,31 @@ const STRATEGY_FILES: Record<string, { path: string; label: string; description:
     label: '전투 장면 규칙',
     description: '용대운 원칙, 전투 절대 규칙, 전투 EP 규칙',
     editable: false,
+  },
+  // ── 🧭 전략/방향 ──
+  'theme': {
+    path: 'novels/murim_mna/테마_주제의식.md',
+    label: '테마·주제의식',
+    description: '핵심 테마, 5대 서브 테마, 화수별 배치, 체크리스트',
+    editable: true,
+  },
+  'competitive': {
+    path: 'novels/murim_mna/경쟁작_차별화.md',
+    label: '경쟁작 차별화',
+    description: '화산귀환 등 Top 5 분석, 차별화 포인트, 금지 클리셰',
+    editable: true,
+  },
+  'reader': {
+    path: 'novels/murim_mna/독자_타겟분석.md',
+    label: '독자 타겟 분석',
+    description: '핵심 독자 프로필, 감정 니즈, 이탈 포인트, 여정 맵',
+    editable: true,
+  },
+  'style-guide': {
+    path: 'novels/murim_mna/문체_가이드.md',
+    label: '문체 가이드',
+    description: '문장 길이, 속도 조절, 비유법 15가지, 호칭, 금지 표현',
+    editable: true,
   },
 };
 

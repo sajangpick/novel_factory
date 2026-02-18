@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { FileText, Save, RotateCcw, Eye, Edit3, Search, BookOpen, Shield, Users, Map, AlertTriangle, ChevronUp, ChevronDown, X } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { FileText, Save, RotateCcw, Eye, Edit3, Search, BookOpen, Shield, Users, Map, AlertTriangle, ChevronUp, ChevronDown, X, Compass, Target, Palette } from 'lucide-react';
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -22,10 +23,13 @@ const TAB_ICONS: Record<string, React.ElementType> = {
   'master': Map,
   'story-bible': BookOpen,
   'rules': Shield,
-  'characters': Users,
   'ref-index': FileText,
   'novel-writing-rules': Edit3,
   'combat-rules': AlertTriangle,
+  'theme': Compass,
+  'competitive': Target,
+  'reader': Palette,
+  'style-guide': Edit3,
 };
 
 // ── 탭 색상 매핑 ──
@@ -33,10 +37,13 @@ const TAB_COLORS: Record<string, string> = {
   'master': 'text-yellow-400',
   'story-bible': 'text-blue-400',
   'rules': 'text-red-400',
-  'characters': 'text-green-400',
   'ref-index': 'text-gray-400',
   'novel-writing-rules': 'text-purple-400',
   'combat-rules': 'text-orange-400',
+  'theme': 'text-cyan-400',
+  'competitive': 'text-pink-400',
+  'reader': 'text-emerald-400',
+  'style-guide': 'text-violet-400',
 };
 
 interface FileInfo {
@@ -50,9 +57,19 @@ interface FileInfo {
 }
 
 export default function StrategyPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-gray-500">전략 문서 불러오는 중...</div>}>
+      <StrategyPageInner />
+    </Suspense>
+  );
+}
+
+function StrategyPageInner() {
+  const searchParams = useSearchParams();
+
   // ── 상태 ──
   const [files, setFiles] = useState<FileInfo[]>([]);
-  const [activeTab, setActiveTab] = useState('master');
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'master');
   const [content, setContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -67,6 +84,14 @@ export default function StrategyPage() {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);              // 보기 모드 본문 영역 참조
   const searchInputRef = useRef<HTMLInputElement>(null);        // 검색 입력창 포커스용
+
+  // ── URL 파라미터 변경 시 탭 전환 ──
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   // ── 파일 목록 로드 ──
   useEffect(() => {

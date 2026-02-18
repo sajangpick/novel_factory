@@ -585,6 +585,44 @@ export async function POST(req: NextRequest) {
       console.warn('⚠️ 소설_진행_마스터.md 로딩 실패 (무시):', e);
     }
 
+    // ★ [v3] 기억 카드 전체 로딩 — 1화부터 직전 화까지의 압축된 스토리 기억
+    // 확정된 화가 늘어날수록 자동으로 범위 확장 (하드코딩 없음)
+    let memoryCardsContext = '';
+    if (isSupabaseConfigured && episodeNumber > 1) {
+      try {
+        const { data: allCards } = await supabase
+          .from('memory_cards')
+          .select('episode_number, episode_title, when_summary, where_summary, who_summary, what_summary, why_summary, how_summary, asset_change, martial_change, org_change, relationship_change, location_change, health_change, foreshadow_planted, foreshadow_resolved, dominant_personality, personality_conflict, key_dialogue, cliffhanger, next_caution')
+          .eq('series_id', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')
+          .lt('episode_number', episodeNumber)
+          .order('episode_number', { ascending: true });
+
+        if (allCards && allCards.length > 0) {
+          const cardLines = allCards.map((c: any) => {
+            const parts = [`### 제${c.episode_number}화: ${c.episode_title || ''}`];
+            if (c.what_summary) parts.push(`- 핵심사건: ${c.what_summary}`);
+            if (c.where_summary) parts.push(`- 장소: ${c.where_summary}`);
+            if (c.who_summary) parts.push(`- 등장인물: ${c.who_summary}`);
+            if (c.why_summary) parts.push(`- 원인/동기: ${c.why_summary}`);
+            if (c.how_summary) parts.push(`- 전개: ${c.how_summary}`);
+            if (c.relationship_change) parts.push(`- 관계변화: ${c.relationship_change}`);
+            if (c.asset_change) parts.push(`- 자산변동: ${c.asset_change}`);
+            if (c.martial_change) parts.push(`- 무공변동: ${c.martial_change}`);
+            if (c.foreshadow_planted) parts.push(`- 복선투하: ${c.foreshadow_planted}`);
+            if (c.foreshadow_resolved) parts.push(`- 복선회수: ${c.foreshadow_resolved}`);
+            if (c.dominant_personality) parts.push(`- 주도인격: ${c.dominant_personality}`);
+            if (c.key_dialogue) parts.push(`- 핵심대사: "${c.key_dialogue}"`);
+            if (c.cliffhanger) parts.push(`- 절단신공: ${c.cliffhanger}`);
+            return parts.join('\n');
+          });
+          memoryCardsContext = cardLines.join('\n\n');
+          console.log(`🧠 기억 카드 ${allCards.length}화분 로딩 완료 (${memoryCardsContext.length.toLocaleString()}자) — 1~${allCards[allCards.length - 1].episode_number}화`);
+        }
+      } catch (e) {
+        console.warn('⚠️ 기억 카드 로딩 실패 (무시):', e);
+      }
+    }
+
     // 2단계: 직전 1화만 전문 로딩 (문체 연속성 + 장면 이어쓰기)
     if (episodeNumber > 1) {
       try {
@@ -641,6 +679,7 @@ export async function POST(req: NextRequest) {
       worldContext,
       memoryContext,
       masterContext,              // ★ [v2] 소설_진행_마스터.md 전체 = 정리된 맥락 요약
+      memoryCardsContext,         // ★ [v3] 전체 기억 카드 = 1화부터의 압축 스토리
       styleReference,             // ★ [품질 엔진] 명문장 레퍼런스
       characterVoices,            // ★ [품질 엔진] 캐릭터 대사 앵커링
       loreReferences,             // ★ [설정 자동 주입] 인명록·바이블 자동 추출 설정
@@ -1039,11 +1078,12 @@ function buildEpisodePrompt(params: {
   worldContext: string;
   memoryContext?: any;
   masterContext?: string;        // ★ [v2] 소설_진행_마스터.md 전체 = 정리된 맥락 요약
+  memoryCardsContext?: string;   // ★ [v3] 전체 기억 카드 = 1화부터의 압축 스토리 기억
   styleReference?: string;       // ★ [품질 엔진] 명문장 레퍼런스
   characterVoices?: string;      // ★ [품질 엔진] 캐릭터 대사 앵커링
   loreReferences?: string;       // ★ [설정 자동 주입] 인명록·바이블 자동 추출 설정
 }): string {
-  const { episodeNumber, episodeTitle, blueprint, structureDesign, previousEpisodeEnding, section, characters, previousEpisodeSummary, worldContext, memoryContext, masterContext, styleReference, characterVoices, loreReferences } = params;
+  const { episodeNumber, episodeTitle, blueprint, structureDesign, previousEpisodeEnding, section, characters, previousEpisodeSummary, worldContext, memoryContext, masterContext, memoryCardsContext, styleReference, characterVoices, loreReferences } = params;
 
   // ── 캐릭터 페르소나 정보 구성 ──
   let characterGuide = '';
@@ -1139,6 +1179,12 @@ ${structureDesign}
 > ★ 이 문서에 없는 과거 사건을 AI가 임의로 끌어오지 마세요.
 
 ${masterContext}
+
+` : ''}${memoryCardsContext ? `## 🧠 전체 스토리 기억 (확정된 모든 화의 핵심 요약)
+> 아래는 1화부터 확정된 모든 화의 핵심 사건·복선·관계 변화 요약입니다.
+> ★ 이 기억을 토대로 인물 관계, 미회수 복선, 감정 흐름을 이번 화에 자연스럽게 연결하세요.
+
+${memoryCardsContext}
 
 ` : ''}${previousEpisodeEnding ? `## ★ 이전 화 마지막 장면 (이 장면 직후부터 이어서 작성)
 > 아래는 제${episodeNumber - 1}화의 마지막 부분입니다. 이 분위기와 상황을 자연스럽게 이어받아 제${episodeNumber}화를 시작하세요.

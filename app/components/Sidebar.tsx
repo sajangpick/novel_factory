@@ -8,32 +8,35 @@ import {
   Database, 
   Users, 
   LayoutDashboard,
-  FileText,
   CheckSquare,
   Settings,
   Film,
-  Brain,
   Activity,
   PenTool,
   Map,
   ChevronDown,
   ChevronRight,
-  Layers,
-  Sparkles,
-  Shield,
-  Crosshair
+  Crosshair,
+  SearchCheck,
+  ClipboardList,
 } from 'lucide-react';
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * [좌측 사이드바] - 작업 중심 메뉴 구조
+ * [좌측 사이드바] - 집필 최적화 구조
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * 
- * 그룹 구조:
- * 1. 작업실: 본문 집필(Step 6) + 전략 문서 (가장 많이 쓰는 메뉴)
- * 2. 참조 자료: 인명록, 세계관 DB, 기억 시스템
- * 3. 기획 도구: Step 1~5 (초기 설정, 접어두기 가능)
- * 4. 검수/관리: Step 7~8, 출연진, 설정
+ *
+ * 집필 흐름 (매일 쓰는 동선):
+ *   현재 상태 → 전략 브리핑 → 본문 집필 → 품질 검수
+ *
+ * 기획실 (가끔):
+ *   기획 도구 (Step 1~4 통합 페이지)
+ *
+ * 참조 자료 (필요할 때):
+ *   인명록, 세계관 DB, 전략 문서
+ *
+ * 관리 도구 (접기):
+ *   AI 교정, DB 업데이트, 출연진, 설정
  */
 
 interface MenuItem {
@@ -46,43 +49,27 @@ interface MenuItem {
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [showPlanning, setShowPlanning] = useState(true);
-  const [showManagement, setShowManagement] = useState(true);
+  const [showManagement, setShowManagement] = useState(false);
 
-  // ── 작업실 (핵심 메뉴) ──
-  const workspaceMenus: MenuItem[] = [
+  // ── 집필 흐름 (매일 쓰는 동선) ──
+  const workflowMenus: MenuItem[] = [
+    { icon: Activity, label: '현재 상태', href: '/dashboard/memory' },
     { icon: Crosshair, label: '전략 브리핑', href: '/dashboard/briefing', badge: 'NEW' },
     { icon: PenTool, label: '본문 집필', href: '/dashboard/step6', highlight: true },
-    { icon: Map, label: '전략 문서', href: '/dashboard/strategy' },
-  ];
-
-  // ── 참조 자료 ──
-  const referenceMenus: MenuItem[] = [
-    { icon: Users, label: '인명록', href: '/dashboard/characters' },
-    { icon: Database, label: '세계관 DB', href: '/dashboard/worlddb' },
-    { icon: Activity, label: '현재 상태', href: '/dashboard/memory' },
-    { icon: Brain, label: '기억 카드', href: '/dashboard/memory/cards' },
-  ];
-
-  // ── 기획 도구 (접기 가능) ──
-  const planningMenus: MenuItem[] = [
-    { icon: FileText, label: '1. 스펙 정의', href: '/dashboard/step1' },
-    { icon: Layers, label: '2. 4단 구조', href: '/dashboard/step2' },
-    { icon: BookOpen, label: '3. 전체 화 뼈대', href: '/dashboard/step3' },
-    { icon: Sparkles, label: '4. 상세 청사진', href: '/dashboard/step4' },
-    { icon: Database, label: '5. DB 연동', href: '/dashboard/step5' },
-  ];
-
-  // ── 검수/관리 (접기 가능) ──
-  const managementMenus: MenuItem[] = [
     { icon: CheckSquare, label: '품질 검수', href: '/dashboard/step7' },
+  ];
+
+  // ── 관리 도구 (접기 가능) — 인명록/세계관/전략 관리 포함 ──
+  const managementMenus: MenuItem[] = [
+    { icon: Users, label: '인명록 관리', href: '/dashboard/characters' },
+    { icon: Database, label: '세계관 관리', href: '/dashboard/worlddb' },
+    { icon: Map, label: '전략 문서', href: '/dashboard/strategy' },
+    { icon: SearchCheck, label: 'AI 교정', href: '/dashboard/ai-review', badge: 'NEW' },
     { icon: Database, label: 'DB 업데이트', href: '/dashboard/step8' },
     { icon: Film, label: '화수별 출연진', href: '/dashboard/episodes' },
     { icon: Settings, label: '시스템 설정', href: '/dashboard/settings' },
   ];
 
-  // 현재 기획 도구/관리 메뉴에 있으면 자동 펼침
-  const isInPlanning = planningMenus.some(m => pathname === m.href);
   const isInManagement = managementMenus.some(m => pathname === m.href);
 
   return (
@@ -107,13 +94,13 @@ export default function Sidebar() {
           isActive={pathname === '/dashboard'}
         />
 
-        {/* ── 작업실 (핵심) ── */}
+        {/* ── 집필 흐름 (매일 동선) ── */}
         <div>
           <h3 className="px-2 mb-1.5 text-[10px] font-bold text-murim-gold uppercase tracking-widest">
-            작업실
+            집필 흐름
           </h3>
           <div className="space-y-0.5">
-            {workspaceMenus.map((item) => (
+            {workflowMenus.map((item) => (
               <SidebarLink
                 key={item.href}
                 icon={item.icon}
@@ -121,65 +108,34 @@ export default function Sidebar() {
                 href={item.href}
                 isActive={pathname === item.href}
                 highlight={item.highlight}
+                badge={item.badge}
               />
             ))}
           </div>
         </div>
 
-        {/* ── 참조 자료 ── */}
+        {/* ── 새 소설 ── */}
         <div>
           <h3 className="px-2 mb-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-            참조 자료
+            새 소설
           </h3>
           <div className="space-y-0.5">
-            {referenceMenus.map((item) => (
-              <SidebarLink
-                key={item.href}
-                icon={item.icon}
-                label={item.label}
-                href={item.href}
-                isActive={pathname === item.href || pathname.startsWith(item.href + '/')}
-              />
-            ))}
+            <SidebarLink
+              icon={ClipboardList}
+              label="기획실"
+              href="/dashboard/planning"
+              isActive={pathname === '/dashboard/planning'}
+            />
           </div>
         </div>
 
-        {/* ── 기획 도구 (접기) ── */}
-        <div>
-          <button
-            onClick={() => setShowPlanning(!showPlanning)}
-            className="w-full flex items-center justify-between px-2 mb-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-widest hover:text-gray-300 transition-colors"
-          >
-            기획 도구
-            {(showPlanning || isInPlanning) ? (
-              <ChevronDown className="w-3 h-3" />
-            ) : (
-              <ChevronRight className="w-3 h-3" />
-            )}
-          </button>
-          {(showPlanning || isInPlanning) && (
-            <div className="space-y-0.5">
-              {planningMenus.map((item) => (
-                <SidebarLink
-                  key={item.href}
-                  icon={item.icon}
-                  label={item.label}
-                  href={item.href}
-                  isActive={pathname === item.href}
-                  compact
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ── 검수/관리 (접기) ── */}
+        {/* ── 관리 도구 (접기) ── */}
         <div>
           <button
             onClick={() => setShowManagement(!showManagement)}
             className="w-full flex items-center justify-between px-2 mb-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-widest hover:text-gray-300 transition-colors"
           >
-            검수 · 관리
+            관리 도구
             {(showManagement || isInManagement) ? (
               <ChevronDown className="w-3 h-3" />
             ) : (
@@ -196,6 +152,7 @@ export default function Sidebar() {
                   href={item.href}
                   isActive={pathname === item.href}
                   compact
+                  badge={item.badge}
                 />
               ))}
             </div>
@@ -205,7 +162,7 @@ export default function Sidebar() {
 
       {/* ── 푸터 ── */}
       <div className="p-3 border-t border-murim-border text-[10px] text-gray-600">
-        <p>Novel Factory v0.2.0</p>
+        <p>Novel Factory v0.3.0</p>
         <p className="mt-0.5">© 2026 사장의 Pick</p>
       </div>
     </aside>

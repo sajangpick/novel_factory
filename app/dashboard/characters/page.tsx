@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Users, Search, Plus, Edit, Trash2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Users, Search, Plus, Edit, Trash2, ChevronDown, Settings } from 'lucide-react';
 
 /**
  * [캐릭터 인명록 관리 페이지]
@@ -103,6 +103,8 @@ export default function CharactersPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
+  const [showTools, setShowTools] = useState(false);
+  const toolsRef = useRef<HTMLDivElement>(null);
   // ── 30가지 특징 편집용 상태 ──
   const [editingChar, setEditingChar] = useState<Record<string, any> | null>(null);
   const [editTab, setEditTab] = useState(0); // 탭 인덱스
@@ -1670,287 +1672,227 @@ export default function CharactersPage() {
     setShowEditModal(true);
   };
 
+  // 역할별 색상
+  const roleColor: Record<string, string> = {
+    '주인공': 'text-yellow-300 bg-yellow-400/15',
+    '주요 조연': 'text-amber-300 bg-amber-400/15',
+    '조연': 'text-blue-300 bg-blue-400/10',
+    '단역': 'text-gray-400 bg-gray-500/10',
+  };
+
   return (
-    <div className="p-8 space-y-6">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between border-b border-murim-border pb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-            <Users className="w-8 h-8 text-murim-gold" />
-            캐릭터 인명록
-          </h1>
-          <p className="text-gray-500 mt-2">
-            무림 M&A 등장인물 관리 - 총 {characters.length}명
-          </p>
-        </div>
-
-        <div className="flex gap-3 flex-wrap">
-          {/* 🚀 1000명 자동 생성 버튼 (NEW!) */}
-          {characters.length < 1000 && (
-            <button
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg font-semibold transition-colors shadow-lg"
-              onClick={handleGenerate1000Characters}
-              disabled={loading}
-            >
-              🚀 1000명 자동 생성 (현재 {characters.length}명)
-            </button>
-          )}
-
-          {/* 📤 Supabase 업로드 버튼 */}
-          {characters.length > 0 && (
-            <button
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
-              onClick={handleUploadToSupabase}
-              disabled={loading}
-            >
-              📤 Supabase 업로드 ({characters.length}명)
-            </button>
-          )}
-
-          {/* 🔥 상세 정보 자동 채우기 */}
-          <button
-            className="flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors"
-            onClick={handleEnrichCharacters}
-            disabled={loading}
-          >
-            🔥 상세 정보 자동 채우기
-          </button>
-
-          {/* 🐯 흑호단/흑천상단 등록 버튼 */}
-          <button
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-lg font-semibold transition-colors shadow-lg"
-            onClick={handleSeedBlackTiger}
-            disabled={loading}
-          >
-            🐯 흑호단/흑천상단 등록 (8명)
-          </button>
-
-          {/* 중복 제거 버튼 */}
-          {characters.length > 0 && (
-            <button
-              className="flex items-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors"
-              onClick={handleCleanupCharacters}
-            >
-              🧹 중복 제거
-            </button>
-          )}
-          
-          {/* 새 캐릭터 추가 버튼 */}
-          <button
-            className="flex items-center gap-2 px-6 py-3 bg-murim-gold hover:bg-yellow-600 text-murim-darker rounded-lg font-semibold transition-colors"
-            onClick={() => {
-              setFormData({
-                name: '',
-                title: '',
-                role: '조연',
-                faction: '',
-                group_title: '',
-                group_position: undefined,
-                age: '',
-                martial_rank: '',
-                appearance: '',
-              });
-              setShowAddModal(true);
-            }}
-          >
-            <Plus className="w-5 h-5" />
-            새 캐릭터 추가
-          </button>
-        </div>
-      </div>
-
-      {/* 검색 및 필터 */}
-      <div className="space-y-4">
-        {/* 검색 */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="이름, 소속 검색..."
-            className="w-full pl-10 pr-4 py-3 bg-murim-darker border border-murim-border rounded-lg text-foreground focus:outline-none focus:border-murim-accent"
-          />
-        </div>
-
-        {/* 역할 필터 */}
-        <div>
-          <p className="text-sm text-gray-500 mb-2">역할별 필터</p>
-          <div className="flex gap-2 flex-wrap">
-            {roles.map((role) => (
-              <button
-                key={role}
-                onClick={() => setSelectedRole(role)}
-                className={`
-                  px-4 py-2 rounded-lg font-semibold transition-colors
-                  ${
-                    selectedRole === role
-                      ? 'bg-murim-gold text-murim-darker'
-                      : 'bg-murim-darker border border-murim-border text-gray-400 hover:border-murim-gold'
-                  }
-                `}
-              >
-                {role}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 단체외호 필터 */}
-        {groupTitles.length > 1 && (
-          <div>
-            <p className="text-sm text-gray-500 mb-2">단체외호 필터</p>
-            <div className="flex gap-2 flex-wrap">
-              {groupTitles.map((groupTitle) => (
-                <button
-                  key={groupTitle}
-                  onClick={() => setSelectedGroupTitle(groupTitle)}
-                  className={`
-                    px-4 py-2 rounded-lg font-semibold transition-colors text-sm
-                    ${
-                      selectedGroupTitle === groupTitle
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-murim-darker border border-murim-border text-gray-400 hover:border-purple-500'
-                    }
-                  `}
-                >
-                  {groupTitle}
-                </button>
-              ))}
+    <div className="flex flex-col h-[calc(100vh-64px)]">
+      {/* ── 상단 헤더 ── */}
+      <div className="flex-shrink-0 px-6 py-4 border-b border-murim-border bg-murim-darker/50">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          {/* 왼쪽: 제목 + 통계 요약 */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              <Users className="w-7 h-7 text-murim-gold" />
+              <div>
+                <h1 className="text-xl font-bold text-foreground">캐릭터 인명록</h1>
+                <p className="text-xs text-gray-500">총 {characters.length}명</p>
+              </div>
+            </div>
+            {/* 인라인 통계 */}
+            <div className="hidden md:flex items-center gap-3 text-xs">
+              <span className="text-yellow-300">주인공 {characters.filter(c => c.role === '주인공').length}</span>
+              <span className="text-gray-600">|</span>
+              <span className="text-amber-300">주요조연 {characters.filter(c => c.role === '주요 조연').length}</span>
+              <span className="text-gray-600">|</span>
+              <span className="text-blue-300">조연 {characters.filter(c => c.role === '조연').length}</span>
+              <span className="text-gray-600">|</span>
+              <span className="text-gray-400">단역 {characters.filter(c => c.role === '단역').length}</span>
             </div>
           </div>
-        )}
 
-        {/* 문파 필터 */}
-        <div>
-          <p className="text-sm text-gray-500 mb-2">문파별 필터</p>
-          <div className="flex gap-2 flex-wrap">
-            {factions.map((faction) => (
-              <button
-                key={faction}
-                onClick={() => setSelectedFaction(faction)}
-                className={`
-                  px-4 py-2 rounded-lg font-semibold transition-colors text-sm
-                  ${
-                    selectedFaction === faction
-                      ? 'bg-murim-accent text-white'
-                      : 'bg-murim-darker border border-murim-border text-gray-400 hover:border-murim-accent'
-                  }
-                `}
-              >
-                {faction}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* 로딩 */}
-      {loading ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500">캐릭터 정보를 불러오는 중...</p>
-        </div>
-      ) : (
-        /* 캐릭터 목록 */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredCharacters.map((char) => (
-            <div
-              key={char.id}
-              className="bg-murim-darker border border-murim-border rounded-lg p-6 hover:border-murim-gold transition-colors"
+          {/* 오른쪽: 새 캐릭터 + 관리 도구 드롭다운 */}
+          <div className="flex items-center gap-2">
+            <button
+              className="flex items-center gap-1.5 px-4 py-2 text-sm bg-murim-gold hover:bg-yellow-600 text-murim-darker rounded-lg font-medium transition-colors"
+              onClick={() => {
+                setFormData({ name: '', title: '', role: '조연', faction: '', group_title: '', group_position: undefined, age: '', martial_rank: '', appearance: '' });
+                setShowAddModal(true);
+              }}
             >
-              {/* 캐릭터 헤더 */}
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-xl font-bold text-foreground">
-                    {char.name}
-                    {char.title && <span className="text-murim-gold ml-2 text-sm">({char.title})</span>}
-                  </h3>
-                  <p className="text-gray-500 text-sm">{char.faction}</p>
-                  {char.group_title && (
-                    <p className="text-murim-accent text-sm mt-1">
-                      {char.group_title} {char.group_position ? `${char.group_position}번` : ''}
-                    </p>
+              <Plus className="w-4 h-4" />
+              새 캐릭터
+            </button>
+
+            {/* 관리 도구 드롭다운 */}
+            <div className="relative" ref={toolsRef}>
+              <button
+                onClick={() => setShowTools(!showTools)}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm bg-murim-darker border border-murim-border hover:border-gray-500 text-gray-300 rounded-lg font-medium transition-colors"
+              >
+                <Settings className="w-4 h-4" />
+                관리 도구
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showTools ? 'rotate-180' : ''}`} />
+              </button>
+              {showTools && (
+                <div className="absolute right-0 top-full mt-1 w-64 bg-murim-darker border border-murim-border rounded-lg shadow-xl z-30 py-1">
+                  {characters.length < 1000 && (
+                    <button onClick={() => { handleGenerate1000Characters(); setShowTools(false); }} disabled={loading}
+                      className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 transition-colors disabled:opacity-40">
+                      🚀 1000명 자동 생성 (현재 {characters.length}명)
+                    </button>
                   )}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => openEditModal(char)}
-                    className="p-2 hover:bg-murim-gold/20 rounded-lg transition-colors"
-                    title="수정"
-                  >
-                    <Edit className="w-4 h-4 text-murim-gold" />
+                  <button onClick={() => { handleUploadToSupabase(); setShowTools(false); }} disabled={loading || characters.length === 0}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 transition-colors disabled:opacity-40">
+                    📤 Supabase 업로드 ({characters.length}명)
                   </button>
-                  <button
-                    onClick={() => handleDeleteCharacter(char)}
-                    className="p-2 hover:bg-murim-danger/20 rounded-lg transition-colors"
-                    title="삭제"
-                  >
-                    <Trash2 className="w-4 h-4 text-murim-danger" />
+                  <button onClick={() => { handleEnrichCharacters(); setShowTools(false); }} disabled={loading}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 transition-colors disabled:opacity-40">
+                    🔥 상세 정보 자동 채우기
+                  </button>
+                  <button onClick={() => { handleSeedBlackTiger(); setShowTools(false); }} disabled={loading}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 transition-colors disabled:opacity-40">
+                    🐯 흑호단/흑천상단 등록
+                  </button>
+                  <div className="border-t border-murim-border my-1" />
+                  <button onClick={() => { handleCleanupCharacters(); setShowTools(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 transition-colors">
+                    🧹 중복 제거
+                  </button>
+                  <button onClick={() => { handleCleanup(); setShowTools(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 transition-colors">
+                    📋 300명으로 정리
                   </button>
                 </div>
-              </div>
-
-              {/* 캐릭터 정보 */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500 text-sm">역할</span>
-                  <span className="px-2 py-1 bg-murim-gold/20 text-murim-gold text-xs rounded">
-                    {char.role}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500 text-sm">나이</span>
-                  <span className="text-foreground text-sm">{char.age}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500 text-sm">무공</span>
-                  <span className="text-foreground text-sm">{char.martial_rank}</span>
-                </div>
-              </div>
-
-              {/* 외모 */}
-              <div className="mt-4 pt-4 border-t border-murim-border">
-                <p className="text-gray-500 text-sm line-clamp-2">
-                  {char.appearance}
-                </p>
-              </div>
+              )}
             </div>
-          ))}
+          </div>
         </div>
-      )}
 
-      {/* 검색 결과 없음 */}
-      {!loading && filteredCharacters.length === 0 && (
-        <div className="text-center py-12">
-          <Users className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-500">검색 결과가 없습니다.</p>
+        {/* 검색 + 필터 (한 줄) */}
+        <div className="flex items-center gap-3 mt-3 flex-wrap">
+          {/* 검색 */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="이름 · 소속 검색..."
+              className="w-full pl-8 pr-3 py-2 text-sm bg-murim-darker border border-murim-border rounded-lg text-foreground focus:outline-none focus:border-murim-accent placeholder:text-gray-600"
+            />
+          </div>
+          {/* 역할 드롭다운 */}
+          <select
+            value={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value)}
+            className="px-3 py-2 text-sm bg-murim-darker border border-murim-border rounded-lg text-foreground focus:outline-none focus:border-murim-gold"
+          >
+            {roles.map(r => <option key={r} value={r}>{r === '전체' ? '역할: 전체' : r}</option>)}
+          </select>
+          {/* 문파 드롭다운 */}
+          <select
+            value={selectedFaction}
+            onChange={(e) => setSelectedFaction(e.target.value)}
+            className="px-3 py-2 text-sm bg-murim-darker border border-murim-border rounded-lg text-foreground focus:outline-none focus:border-murim-accent max-w-[180px]"
+          >
+            {factions.map(f => <option key={f} value={f}>{f === '전체' ? '문파: 전체' : f}</option>)}
+          </select>
+          {/* 단체외호 드롭다운 */}
+          {groupTitles.length > 1 && (
+            <select
+              value={selectedGroupTitle}
+              onChange={(e) => setSelectedGroupTitle(e.target.value)}
+              className="px-3 py-2 text-sm bg-murim-darker border border-murim-border rounded-lg text-foreground focus:outline-none focus:border-purple-500 max-w-[180px]"
+            >
+              {groupTitles.map(g => <option key={g} value={g}>{g === '전체' ? '단체: 전체' : g}</option>)}
+            </select>
+          )}
+          {/* 결과 수 */}
+          <span className="text-xs text-gray-500 whitespace-nowrap">
+            {filteredCharacters.length}명 표시
+          </span>
         </div>
-      )}
+      </div>
 
-      {/* 통계 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-6 border-t border-murim-border">
-        <div className="bg-murim-darker border border-murim-border rounded-lg p-4">
-          <p className="text-gray-500 text-sm">전체 캐릭터</p>
-          <p className="text-3xl font-bold text-foreground mt-2">{characters.length}</p>
-        </div>
-        <div className="bg-murim-darker border border-murim-border rounded-lg p-4">
-          <p className="text-gray-500 text-sm">주요 조연</p>
-          <p className="text-3xl font-bold text-murim-gold mt-2">
-            {characters.filter((c) => c.role === '주요 조연').length}
-          </p>
-        </div>
-        <div className="bg-murim-darker border border-murim-border rounded-lg p-4">
-          <p className="text-gray-500 text-sm">조연</p>
-          <p className="text-3xl font-bold text-murim-accent mt-2">
-            {characters.filter((c) => c.role === '조연').length}
-          </p>
-        </div>
-        <div className="bg-murim-darker border border-murim-border rounded-lg p-4">
-          <p className="text-gray-500 text-sm">단역</p>
-          <p className="text-3xl font-bold text-gray-500 mt-2">
-            {characters.filter((c) => c.role === '단역').length}
-          </p>
-        </div>
+      {/* ── 메인: 테이블 목록 ── */}
+      <div className="flex-1 overflow-auto">
+        {loading ? (
+          <div className="flex items-center justify-center h-40 text-gray-500">
+            캐릭터 불러오는 중...
+          </div>
+        ) : filteredCharacters.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-40 text-gray-600 gap-2">
+            <Users className="w-10 h-10 opacity-30" />
+            <span className="text-sm">검색 결과가 없습니다</span>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 z-10 bg-murim-darker border-b border-murim-border">
+              <tr className="text-gray-500 text-xs uppercase tracking-wider">
+                <th className="text-left px-4 py-3 font-medium w-[180px]">이름</th>
+                <th className="text-left px-3 py-3 font-medium hidden lg:table-cell">소속</th>
+                <th className="text-center px-3 py-3 font-medium w-[90px]">역할</th>
+                <th className="text-center px-3 py-3 font-medium w-[80px] hidden md:table-cell">나이</th>
+                <th className="text-center px-3 py-3 font-medium w-[90px] hidden md:table-cell">무공</th>
+                <th className="text-left px-3 py-3 font-medium hidden xl:table-cell">외모</th>
+                <th className="text-center px-3 py-3 font-medium w-[80px]">관리</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-murim-border/50">
+              {filteredCharacters.map((char) => (
+                <tr
+                  key={char.id}
+                  className="hover:bg-white/[0.03] transition-colors cursor-pointer"
+                  onClick={() => openEditModal(char)}
+                >
+                  {/* 이름 + 호 */}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-foreground">{char.name}</span>
+                      {char.title && (
+                        <span className="text-murim-gold text-xs hidden sm:inline">({char.title})</span>
+                      )}
+                    </div>
+                    {char.group_title && (
+                      <span className="text-[11px] text-purple-400">
+                        {char.group_title}{char.group_position ? ` ${char.group_position}번` : ''}
+                      </span>
+                    )}
+                  </td>
+                  {/* 소속 */}
+                  <td className="px-3 py-3 text-gray-400 hidden lg:table-cell">{char.faction}</td>
+                  {/* 역할 */}
+                  <td className="px-3 py-3 text-center">
+                    <span className={`inline-block px-2 py-0.5 text-xs rounded-full font-medium ${roleColor[char.role] || 'text-gray-400 bg-gray-500/10'}`}>
+                      {char.role}
+                    </span>
+                  </td>
+                  {/* 나이 */}
+                  <td className="px-3 py-3 text-center text-gray-400 hidden md:table-cell">{char.age}</td>
+                  {/* 무공 */}
+                  <td className="px-3 py-3 text-center text-gray-300 hidden md:table-cell">{char.martial_rank}</td>
+                  {/* 외모 */}
+                  <td className="px-3 py-3 text-gray-500 text-xs truncate max-w-[200px] hidden xl:table-cell">{char.appearance}</td>
+                  {/* 관리 버튼 */}
+                  <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        onClick={() => openEditModal(char)}
+                        className="p-1.5 hover:bg-murim-gold/20 rounded transition-colors"
+                        title="수정"
+                      >
+                        <Edit className="w-3.5 h-3.5 text-murim-gold" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCharacter(char)}
+                        className="p-1.5 hover:bg-red-500/20 rounded transition-colors"
+                        title="삭제"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* 추가 모달 */}
