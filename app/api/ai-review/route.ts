@@ -27,33 +27,47 @@ function addLineNumbers(text: string): string {
   return text.split('\n').map((line, i) => `${String(i + 1).padStart(4)}|${line}`).join('\n');
 }
 
-// ── Claude API 호출 ──
+// ── Claude API 호출 (429 Rate Limit 시 자동 재시도) ──
 async function callClaude(apiKey: string, systemPrompt: string, userPrompt: string, maxTokens: number): Promise<string> {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: maxTokens,
-      temperature: 0.2,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
-    }),
-  });
+  const MAX_RETRIES = 2;
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Claude API 오류 (${res.status}): ${errText}`);
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5-20250929',
+        max_tokens: maxTokens,
+        temperature: 0.2,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      }),
+    });
+
+    if (res.status === 429 && attempt < MAX_RETRIES) {
+      const retryAfter = parseInt(res.headers.get('retry-after') || '30');
+      const waitSec = Math.min(retryAfter || 30, 60);
+      console.log(`⏳ Rate limit 도달 — ${waitSec}초 대기 후 재시도 (${attempt + 1}/${MAX_RETRIES})`);
+      await new Promise(r => setTimeout(r, waitSec * 1000));
+      continue;
+    }
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Claude API 오류 (${res.status}): ${errText}`);
+    }
+
+    const data: any = await res.json();
+    return Array.isArray(data?.content)
+      ? data.content.filter((c: any) => c?.type === 'text').map((c: any) => c.text).join('')
+      : '';
   }
 
-  const data: any = await res.json();
-  return Array.isArray(data?.content)
-    ? data.content.filter((c: any) => c?.type === 'text').map((c: any) => c.text).join('')
-    : '';
+  throw new Error('Claude API 재시도 횟수 초과');
 }
 
 // ── JSON 파싱 헬퍼 (코드블록 제거 + 안전 파싱) ──
@@ -365,7 +379,21 @@ async function processInstruction(
   episodeNumber: number,
   episodeContent: string,
 ): Promise<any> {
-  const numberedText = addLineNumbers(episodeContent);
+  const lines = episodeContent.split('\n');
+
+  // 행번호 지시인 경우 해당 행 주변만 전송 (토큰 절약)
+  const lineMatch = instruction.match(/(\d+)\s*행/);
+  let contextText: string;
+  if (lineMatch) {
+    const targetLine = parseInt(lineMatch[1]);
+    const start = Math.max(0, targetLine - 50);
+    const end = Math.min(lines.length, targetLine + 50);
+    contextText = lines.slice(start, end)
+      .map((line, i) => `${String(start + i + 1).padStart(4)}|${line}`)
+      .join('\n');
+  } else {
+    contextText = addLineNumbers(episodeContent);
+  }
 
   // 지시문에서 키워드 추출 (한글 2글자 이상 + 영문 용어)
   const instrKeywords = [
@@ -376,8 +404,19 @@ async function processInstruction(
   // Supabase에서 스마트 검색 + 이전 화 참조
   const [referenceContext, prevEpisodes] = await Promise.all([
     smartSearch(instrKeywords),
-    fetchPreviousEpisodes(episodeNumber, 2),
+    fetchPreviousEpisodes(episodeNumber, 1),
   ]);
+
+  // 참고자료 크기 제한 (Claude 200K 토큰 한도 대비 — 약 8만자)
+  const MAX_REF_CHARS = 80000;
+  const trimmedRef = referenceContext.length > MAX_REF_CHARS
+    ? referenceContext.slice(0, MAX_REF_CHARS) + '\n\n...(참고자료 일부 생략)...'
+    : referenceContext;
+
+  const MAX_PREV_CHARS = 20000;
+  const trimmedPrev = prevEpisodes && prevEpisodes.length > MAX_PREV_CHARS
+    ? prevEpisodes.slice(0, MAX_PREV_CHARS) + '\n\n...(이전 화 일부 생략)...'
+    : prevEpisodes;
 
   const prompt = `당신은 무협 웹소설 편집자입니다. 사용자가 제${episodeNumber}화에 대해 지시를 내렸습니다.
 
@@ -385,11 +424,11 @@ async function processInstruction(
 ${instruction}
 
 ━━ 참고자료 (바이블+규칙+인명록+진행상황) ━━
-${referenceContext}
-${prevEpisodes ? `\n\n━━ 이전 화 본문 (연속성 참조용) ━━\n${prevEpisodes}` : ''}
+${trimmedRef}
+${trimmedPrev ? `\n\n━━ 이전 화 본문 (연속성 참조용) ━━\n${trimmedPrev}` : ''}
 
 ━━ 제${episodeNumber}화 본문 (행번호 포함) ━━
-${numberedText}
+${contextText}
 
 사용자의 지시에 따라 **참고자료를 기준으로** 분석하세요.
 문제가 있으면 이슈 목록으로, 없으면 message만 반환하세요.
@@ -450,11 +489,16 @@ export async function POST(req: NextRequest) {
       const keywords = await extractKeywords(claudeKey, episodeContent);
       const [referenceContext, prevEpisodes] = await Promise.all([
         smartSearch(keywords),
-        fetchPreviousEpisodes(episodeNumber || 0, 2),
+        fetchPreviousEpisodes(episodeNumber || 0, 1),
       ]);
-      const fullContext = prevEpisodes
-        ? referenceContext + `\n\n━━ 이전 화 본문 (연속성 참조용) ━━\n${prevEpisodes}`
-        : referenceContext;
+      // 토큰 한도 보호 (Claude 200K 제한)
+      const MAX_REF = 80000;
+      const trimRef = referenceContext.length > MAX_REF ? referenceContext.slice(0, MAX_REF) + '\n...(생략)' : referenceContext;
+      const MAX_PREV = 20000;
+      const trimPrev = prevEpisodes && prevEpisodes.length > MAX_PREV ? prevEpisodes.slice(0, MAX_PREV) + '\n...(생략)' : prevEpisodes;
+      const fullContext = trimPrev
+        ? trimRef + `\n\n━━ 이전 화 본문 (연속성 참조용) ━━\n${trimPrev}`
+        : trimRef;
       const review = await reviewEpisode(claudeKey, episodeNumber || 0, episodeContent, fullContext);
 
       return NextResponse.json({ success: true, keywords, review });

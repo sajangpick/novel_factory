@@ -4,41 +4,30 @@ import { join } from 'path';
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * [전략 문서 API] - 핵심 .md 파일 읽기/쓰기
+ * [장르 공통 DB API] - 다른 무협소설에도 재사용 가능한 참조 자료
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * 
- * 대시보드에서 전략 회의 결과 문서를 직접 조회하고 수정할 수 있도록 합니다.
+ * 작품 전용 자료는 /dashboard/worlddb (작품 자료)에서 관리.
+ * 이 API는 장르 공통 자료만 다룹니다.
  * 
  * GET: 파일 목록 또는 특정 파일 내용 읽기
  * PUT: 특정 파일 내용 수정
  */
 
-// ── 허용된 전략 문서 목록 (보안: 이 목록 외 파일 접근 차단) ──
+// ── 장르 공통 파일 목록 (보안: 이 목록 외 파일 접근 차단) ──
 const STRATEGY_FILES: Record<string, { path: string; label: string; description: string; editable: boolean }> = {
-  // ── 핵심 작업 문서 ──
-  'master': {
-    path: 'novels/murim_mna/소설_진행_마스터.md',
-    label: '소설 진행 마스터',
-    description: '현재 상태, 다음 화 주의사항, 활성 복선, 관계도, 감정 목표',
-    editable: true,
-  },
-  'story-bible': {
-    path: 'novels/murim_mna/master_story_bible.md',
-    label: '스토리 바이블',
-    description: '전체 로드맵, 장기 복선, 캐릭터 아크 계획 (14~25화+)',
-    editable: true,
-  },
+  // ── 📝 집필 규칙/문체 ──
   'rules': {
     path: 'novels/murim_mna/집필_규칙_핵심.md',
     label: '집필 규칙 핵심',
-    description: 'EP 규칙 15개, 말투, 코미디 쿼터, 위소운 약점, 소설체 규칙',
+    description: 'EP 규칙 15개, 말투, 코미디 쿼터, 소설체 규칙',
     editable: true,
   },
-  'ref-index': {
-    path: 'novels/murim_mna/_파일_색인.md',
-    label: '파일 색인',
-    description: '35개 참조 파일 전체 지도 + 가나다 찾아보기',
-    editable: false,
+  'style-guide': {
+    path: 'novels/murim_mna/문체_가이드.md',
+    label: '문체 가이드',
+    description: '문장 길이, 속도 조절, 비유법 15가지, 호칭, 금지 표현',
+    editable: true,
   },
   'novel-writing-rules': {
     path: '.cursor/rules/novel-writing.mdc',
@@ -52,29 +41,72 @@ const STRATEGY_FILES: Record<string, { path: string; label: string; description:
     description: '용대운 원칙, 전투 절대 규칙, 전투 EP 규칙',
     editable: false,
   },
-  // ── 🧭 전략/방향 ──
-  'theme': {
-    path: 'novels/murim_mna/테마_주제의식.md',
-    label: '테마·주제의식',
-    description: '핵심 테마, 5대 서브 테마, 화수별 배치, 체크리스트',
+  // ── 🗡️ 무공/전투 ──
+  'martial-sys': {
+    path: 'novels/murim_mna/world_db/무공_시스템.md',
+    label: '무공 시스템',
+    description: '무공 체계, 내공/외공, 경지 분류, 심법 원리',
     editable: true,
   },
-  'competitive': {
-    path: 'novels/murim_mna/경쟁작_차별화.md',
-    label: '경쟁작 차별화',
-    description: '화산귀환 등 Top 5 분석, 차별화 포인트, 금지 클리셰',
+  'martial-dic': {
+    path: 'novels/murim_mna/world_db/무공_기법_대전.md',
+    label: '무공 기법 대전',
+    description: '무공 기법 사전, 초식 목록, 검법/권법/장법 분류',
     editable: true,
   },
-  'reader': {
-    path: 'novels/murim_mna/독자_타겟분석.md',
-    label: '독자 타겟 분석',
-    description: '핵심 독자 프로필, 감정 니즈, 이탈 포인트, 여정 맵',
+  'combat-guide': {
+    path: 'novels/murim_mna/world_db/전투_안무가이드.md',
+    label: '전투 안무 가이드',
+    description: '전투 장면 작성법, 타격감, 속도 묘사, 긴장감 연출',
     editable: true,
   },
-  'style-guide': {
-    path: 'novels/murim_mna/문체_가이드.md',
-    label: '문체 가이드',
-    description: '문장 길이, 속도 조절, 비유법 15가지, 호칭, 금지 표현',
+  // ── 🌏 세계관 DB ──
+  'geo': {
+    path: 'novels/murim_mna/world_db/지리_이동_DB.md',
+    label: '지리·이동 DB',
+    description: '중국 지리, 도시간 이동 시간, 주요 거점',
+    editable: true,
+  },
+  'food': {
+    path: 'novels/murim_mna/world_db/음식_DB.md',
+    label: '음식 DB',
+    description: '시대별 음식, 조리법, 식재료, 객잔 메뉴',
+    editable: true,
+  },
+  'arch': {
+    path: 'novels/murim_mna/world_db/건축_객실_DB.md',
+    label: '건축·객실 DB',
+    description: '객잔 구조, 방 배치, 건물 양식, 가구',
+    editable: true,
+  },
+  'weapons': {
+    path: 'novels/murim_mna/world_db/무기_병기_DB.md',
+    label: '무기·병기 DB',
+    description: '무기 종류, 특성, 무게, 사용법',
+    editable: true,
+  },
+  'clothing': {
+    path: 'novels/murim_mna/world_db/의복_복식_DB.md',
+    label: '의복·복식 DB',
+    description: '시대별 의복, 계급별 복장, 색상 의미',
+    editable: true,
+  },
+  'inns': {
+    path: 'novels/murim_mna/world_db/지역별_객잔_DB.md',
+    label: '지역별 객잔 DB',
+    description: '지역별 유명 객잔, 분위기, 특색 요리',
+    editable: true,
+  },
+  'wuxia-terms': {
+    path: 'novels/murim_mna/world_db/무협_용어집.md',
+    label: '무협 용어집',
+    description: '무협 전문 용어, 호칭, 존칭, 강호 표현',
+    editable: true,
+  },
+  'biz-terms': {
+    path: 'novels/murim_mna/world_db/경영_용어집.md',
+    label: '경영 용어집',
+    description: '경영 용어 → 무협 세계 매핑, 사업 표현',
     editable: true,
   },
 };

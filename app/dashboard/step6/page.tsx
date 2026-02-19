@@ -839,7 +839,7 @@ export default function Step6Page() {
                 value={blueprint}
                 onChange={(e) => setBlueprint(e.target.value)}
                 placeholder={`제${episodeNumber}화 설계도를 입력하세요...\n\n예시:\n- 이번 화 핵심 사건\n- 등장 캐릭터\n- 감정 흐름\n- 엔딩 훅\n\n(최소 100자 이상)`}
-                className="w-full h-64 p-3 text-xs text-gray-300 bg-black/30 border border-murim-border rounded-lg resize-y focus:outline-none focus:border-murim-gold leading-relaxed"
+                className="w-full h-96 p-3 text-xs text-gray-300 bg-black/30 border border-murim-border rounded-lg resize-y focus:outline-none focus:border-murim-gold leading-relaxed"
               />
               <div className="flex items-center justify-between text-xs text-gray-600">
                 <span>{blueprint.length}자 {blueprint.length >= 100 ? '✅' : '(최소 100자)'}</span>
@@ -1140,7 +1140,7 @@ export default function Step6Page() {
                   value={blueprint}
                   onChange={(e) => setBlueprint(e.target.value)}
                   placeholder={`제${episodeNumber}화 설계도를 입력하세요...\n\n⚡ "자동 세팅" → master_story_bible + 진행마스터에서 자동 로딩\n✏️ 확인/수정 후 → "구조 설계" 버튼 클릭`}
-                  className="flex-1 w-full bg-murim-darker border border-murim-border rounded-lg p-5 text-gray-300 resize-none focus:outline-none focus:border-murim-gold text-sm leading-relaxed"
+                  className="flex-1 w-full min-h-[500px] bg-murim-darker border border-murim-border rounded-lg p-5 text-gray-300 resize-y focus:outline-none focus:border-murim-gold text-sm leading-relaxed"
                   spellCheck={false}
                 />
 

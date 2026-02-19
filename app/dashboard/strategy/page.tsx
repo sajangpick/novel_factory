@@ -6,13 +6,12 @@ import { FileText, Save, RotateCcw, Eye, Edit3, Search, BookOpen, Shield, Users,
 
 /**
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * [전략 문서] - 핵심 참조 문서 뷰어/에디터
+ * [장르 공통 DB] - 다른 무협 작품에도 재사용 가능한 참조 자료
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * 
- * 전략 회의 결과물을 작업자가 확인하고 수정할 수 있는 페이지입니다.
- * - 소설_진행_마스터.md: 현재 상태 + 다음 화 주의사항
- * - master_story_bible.md: 장기 로드맵
- * - 집필_규칙.md: EP 규칙 + 3인격 엔진
+ * 집필 규칙, 문체 가이드, 무공 시스템, 세계관 DB 등
+ * 장르(무협)에 공통적으로 쓰이는 파일들을 조회·수정합니다.
+ * 작품 전용 자료는 /dashboard/worlddb (작품 자료)에서 관리.
  * - 캐릭터_인명록.md: 핵심 캐릭터 상세
  * - 참조자료_색인.md: 파일 가이드 (읽기 전용)
  * - 소설체/전투 규칙: 스타일 가이드 (읽기 전용)
@@ -58,7 +57,7 @@ interface FileInfo {
 
 export default function StrategyPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-gray-500">전략 문서 불러오는 중...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-gray-500">장르 공통 DB 불러오는 중...</div>}>
       <StrategyPageInner />
     </Suspense>
   );
@@ -451,10 +450,10 @@ function StrategyPageInner() {
           <div>
             <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
               <FileText className="w-6 h-6 text-murim-gold" />
-              전략 문서
+              장르 공통 DB
             </h1>
             <p className="text-xs text-gray-500 mt-1">
-              전략 회의 결과물 · 작업 전 반드시 확인
+              무협 장르 공통 자료 · 다른 작품에도 재사용 가능
             </p>
           </div>
 

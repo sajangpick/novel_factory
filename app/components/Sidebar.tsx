@@ -26,17 +26,14 @@ import {
  * [좌측 사이드바] - 집필 최적화 구조
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
- * 집필 흐름 (매일 쓰는 동선):
- *   현재 상태 → 전략 브리핑 → 본문 집필 → 품질 검수
+ * 집필 프로젝트 (매일 쓰는 동선):
+ *   현재 상태 → 전략 브리핑 → 작품 자료 → 본문 집필 → 품질 검수
  *
  * 기획실 (가끔):
  *   기획 도구 (Step 1~4 통합 페이지)
  *
- * 참조 자료 (필요할 때):
- *   인명록, 세계관 DB, 전략 문서
- *
- * 관리 도구 (접기):
- *   AI 교정, DB 업데이트, 출연진, 설정
+ * 자료실 (접기):
+ *   장르 공통 DB, 인명록, AI 교정, DB 업데이트, 출연진, 설정
  */
 
 interface MenuItem {
@@ -51,20 +48,20 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [showManagement, setShowManagement] = useState(false);
 
-  // ── 집필 흐름 (매일 쓰는 동선) ──
+  // ── 집필 프로젝트 (매일 쓰는 동선) ──
   const workflowMenus: MenuItem[] = [
     { icon: Activity, label: '현재 상태', href: '/dashboard/memory' },
-    { icon: Crosshair, label: '전략 브리핑', href: '/dashboard/briefing', badge: 'NEW' },
+    { icon: Crosshair, label: '전략 브리핑', href: '/dashboard/briefing' },
+    { icon: BookOpen, label: '작품 자료', href: '/dashboard/worlddb' },
     { icon: PenTool, label: '본문 집필', href: '/dashboard/step6', highlight: true },
     { icon: CheckSquare, label: '품질 검수', href: '/dashboard/step7' },
   ];
 
-  // ── 관리 도구 (접기 가능) — 인명록/세계관/전략 관리 포함 ──
+  // ── 자료실 (접기 가능) ──
   const managementMenus: MenuItem[] = [
+    { icon: Database, label: '장르 공통 DB', href: '/dashboard/strategy' },
     { icon: Users, label: '인명록 관리', href: '/dashboard/characters' },
-    { icon: Database, label: '세계관 관리', href: '/dashboard/worlddb' },
-    { icon: Map, label: '전략 문서', href: '/dashboard/strategy' },
-    { icon: SearchCheck, label: 'AI 교정', href: '/dashboard/ai-review', badge: 'NEW' },
+    { icon: SearchCheck, label: 'AI 교정', href: '/dashboard/ai-review' },
     { icon: Database, label: 'DB 업데이트', href: '/dashboard/step8' },
     { icon: Film, label: '화수별 출연진', href: '/dashboard/episodes' },
     { icon: Settings, label: '시스템 설정', href: '/dashboard/settings' },
@@ -129,13 +126,13 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* ── 관리 도구 (접기) ── */}
+        {/* ── 자료실 (접기) ── */}
         <div>
           <button
             onClick={() => setShowManagement(!showManagement)}
             className="w-full flex items-center justify-between px-2 mb-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-widest hover:text-gray-300 transition-colors"
           >
-            관리 도구
+            자료실
             {(showManagement || isInManagement) ? (
               <ChevronDown className="w-3 h-3" />
             ) : (

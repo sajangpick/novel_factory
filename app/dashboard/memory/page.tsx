@@ -244,7 +244,7 @@ export default function MemoryDashboardPage() {
     try {
       const [dashRes, cardsRes] = await Promise.all([
         fetch('/api/novel-dashboard'),
-        fetch('/api/memory-card?recent=5'),
+        fetch('/api/memory-card'),
       ]);
       const dashData = await dashRes.json();
       const cardsData = await cardsRes.json();
@@ -574,7 +574,7 @@ export default function MemoryDashboardPage() {
 
       {/* ━━━ 최근 화 요약 (기억 카드 통합) ━━━ */}
       <CollapsibleSection
-        title={`최근 화 요약 (${recentCards.length}화 기록)`}
+        title={`에피소드 기억 카드 (전화)`}
         sectionKey="recentEpisodes"
         expanded={expandedSections.recentEpisodes}
         onToggle={toggleSection}

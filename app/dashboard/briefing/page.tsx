@@ -85,20 +85,32 @@ interface DashboardData {
   updated_at: string;
 }
 
-// ── 기억 카드 (최근 화별 요약) ──
+// ── 기억 카드 (DB 전체) ──
 interface MemoryCard {
   id: number;
   episode_number: number;
   episode_title: string;
   dominant_personality: string;
+  when_summary: string;
+  where_summary: string;
+  who_summary: string;
   what_summary: string;
   why_summary: string;
+  how_summary: string;
+  asset_change: string;
+  martial_change: string;
+  org_change: string;
+  relationship_change: string;
+  location_change: string;
+  health_change: string;
   foreshadow_planted: string;
+  foreshadow_hinted: string;
   foreshadow_resolved: string;
   personality_conflict: string;
   personality_growth: string;
   key_dialogue: string;
   cliffhanger: string;
+  next_preview: string;
   next_caution: string;
 }
 
@@ -264,7 +276,7 @@ export default function BriefingPage() {
       const [briefRes, dashRes, cardsRes] = await Promise.all([
         fetch('/api/strategic-briefing'),
         fetch('/api/novel-dashboard').catch(() => null),
-        fetch('/api/memory-card?recent=3').catch(() => null),
+        fetch('/api/memory-card').catch(() => null),
       ]);
 
       // Supabase 대시보드 데이터 처리
@@ -901,22 +913,29 @@ export default function BriefingPage() {
           </section>
         )}
 
-        {/* ━━━ 8. 최근 기억카드 (접기) ━━━ */}
-        {briefing.sections.memoryCards && (
+        {/* ━━━ 8. 에피소드 기억 카드 (DB 실시간) ━━━ */}
+        {recentCards.length > 0 && (
           <section className="bg-murim-dark rounded-xl border border-murim-border p-5">
             <button 
               onClick={() => setShowMemoryCards(!showMemoryCards)}
               className="w-full flex items-center justify-between text-foreground"
             >
               <h2 className="text-lg font-bold flex items-center gap-2">
-                <Users className="w-5 h-5 text-gray-400" />
-                최근 기억카드 (§7)
+                <Users className="w-5 h-5 text-murim-accent" />
+                에피소드 기억 카드 (전화)
+                <span className="text-[10px] font-normal text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full">
+                  DB 실시간 · {recentCards.length}화
+                </span>
               </h2>
               {showMemoryCards ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
             </button>
             {showMemoryCards && (
-              <div className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed bg-murim-darker rounded-lg p-4 mt-3 max-h-96 overflow-y-auto">
-                {briefing.sections.memoryCards}
+              <div className="mt-3 space-y-2 max-h-[500px] overflow-y-auto">
+                {recentCards
+                  .sort((a, b) => b.episode_number - a.episode_number)
+                  .map((card, idx) => (
+                    <BriefingEpisodeCard key={card.id} card={card} defaultOpen={idx === 0} />
+                  ))}
               </div>
             )}
           </section>
@@ -1576,6 +1595,96 @@ function ThreadCard({ thread, onDelete }: { thread: PlotThread; onDelete?: (id: 
       <p className="text-sm text-gray-300">{thread.statusIcon} {thread.content}</p>
       {thread.statusText && (
         <p className="text-xs text-gray-500 mt-1">{thread.statusText}</p>
+      )}
+    </div>
+  );
+}
+
+// ━━━ 에피소드 기억 카드 (전략 브리핑용, 현재 상태와 동일 형태) ━━━
+function BriefingEpisodeCard({ card, defaultOpen }: { card: MemoryCard; defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const has = (v: string) => v && v.trim().length > 0;
+
+  const sixW = [
+    { label: '언제', value: card.when_summary, color: 'text-blue-400' },
+    { label: '어디서', value: card.where_summary, color: 'text-green-400' },
+    { label: '누가', value: card.who_summary, color: 'text-yellow-400' },
+    { label: '무엇을', value: card.what_summary, color: 'text-red-400' },
+    { label: '왜', value: card.why_summary, color: 'text-purple-400' },
+    { label: '어떻게', value: card.how_summary, color: 'text-cyan-400' },
+  ].filter(w => has(w.value));
+
+  const changes = [
+    { label: '💰 자산', value: card.asset_change },
+    { label: '⚔️ 무공', value: card.martial_change },
+    { label: '🏢 조직', value: card.org_change },
+    { label: '🤝 관계', value: card.relationship_change },
+    { label: '📍 위치', value: card.location_change },
+    { label: '🩹 건강', value: card.health_change },
+  ].filter(s => has(s.value));
+
+  return (
+    <div className="rounded-lg border border-murim-border overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-murim-darker/50 hover:bg-white/[0.03] transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-murim-accent font-bold text-sm">제{card.episode_number}화</span>
+          <span className="text-foreground text-sm font-medium truncate">{card.episode_title || ''}</span>
+          {card.dominant_personality && (
+            <span className="text-[11px] px-1.5 py-0.5 bg-purple-500/15 text-purple-400 rounded">
+              주도: {card.dominant_personality}
+            </span>
+          )}
+        </div>
+        {open ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
+      </button>
+
+      {open && (
+        <div className="px-4 py-3 space-y-3 bg-murim-darker/20">
+          {sixW.length > 0 && (
+            <div>
+              <p className="text-xs text-gray-500 mb-1.5 font-medium">6하원칙 요약</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {sixW.map(w => (
+                  <div key={w.label} className="p-2 bg-black/20 rounded border border-murim-border/50">
+                    <span className={`text-[11px] font-bold ${w.color}`}>{w.label}</span>
+                    <p className="text-xs text-gray-300 mt-0.5">{w.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {changes.length > 0 && (
+            <div>
+              <p className="text-xs text-gray-500 mb-1.5 font-medium">이 화의 상태 변화</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {changes.map(s => (
+                  <div key={s.label} className="p-2 bg-black/20 rounded border border-murim-border/50">
+                    <span className="text-[11px] font-bold text-gray-400">{s.label}</span>
+                    <p className="text-xs text-gray-300 mt-0.5">{s.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {has(card.key_dialogue) && (
+            <div className="p-2.5 bg-black/20 rounded border-l-2 border-murim-gold">
+              <p className="text-[11px] text-murim-gold font-bold mb-0.5">핵심 대사</p>
+              <p className="text-sm text-gray-200 italic">"{card.key_dialogue}"</p>
+            </div>
+          )}
+
+          {has(card.cliffhanger) && (
+            <div className="p-2 bg-black/20 rounded border border-murim-border/50">
+              <span className="text-[11px] font-bold text-orange-400">클리프행어</span>
+              <p className="text-xs text-gray-300 mt-0.5">{card.cliffhanger}</p>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

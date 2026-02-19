@@ -193,12 +193,25 @@ export default function Step7Page() {
     setChatLoading(true);
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 180000);
+
       const res = await fetch('/api/ai-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'instruct', instruction: msg, episodeNumber, episodeContent: content }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
       let data = await res.json();
+
+      // API 에러 응답 처리 (error 필드가 있으면 표시)
+      if (!res.ok || data.error) {
+        setChatMsgs((prev) => [...prev, { role: 'ai', text: `오류: ${data.error || `서버 응답 ${res.status}`}` }]);
+        setChatLoading(false);
+        return;
+      }
 
       // API가 message에 raw JSON을 넣어 보내는 경우 2차 파싱 시도
       if (data.message && typeof data.message === 'string' && (!data.issues || data.issues.length === 0)) {
@@ -219,7 +232,6 @@ export default function Step7Page() {
           reference: i.reference || '',
           location: i.location || '',
         }));
-        // message에서 JSON 잔해 제거 후 표시
         let displayMsg = data.message || `${issues.length}건 발견`;
         if (displayMsg.startsWith('{') || displayMsg.startsWith('```')) {
           displayMsg = `${issues.length}건의 문제를 발견했습니다.`;
@@ -231,15 +243,17 @@ export default function Step7Page() {
         }]);
         if (issues[0]?.lineNumber) scrollToLine(issues[0].lineNumber);
       } else if (data.message) {
-        // JSON 코드블록 잔해가 message에 남아있으면 정리
         let cleanMsg = data.message;
         if (cleanMsg.startsWith('```')) {
           cleanMsg = cleanMsg.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
         }
         setChatMsgs((prev) => [...prev, { role: 'ai', text: cleanMsg }]);
+      } else {
+        setChatMsgs((prev) => [...prev, { role: 'ai', text: 'AI 응답을 처리할 수 없습니다. 다시 시도해주세요.' }]);
       }
     } catch (err: any) {
-      setChatMsgs((prev) => [...prev, { role: 'ai', text: `오류: ${err.message}` }]);
+      const errorMsg = err.name === 'AbortError' ? '시간 초과 (2분). 다시 시도해주세요.' : `오류: ${err.message}`;
+      setChatMsgs((prev) => [...prev, { role: 'ai', text: errorMsg }]);
     }
     setChatLoading(false);
   };
@@ -335,33 +349,71 @@ export default function Step7Page() {
     } catch { /* 저장 실패 시 화면에는 이미 반영됨 */ }
   };
 
-  // ── AI 검수 실행 ──
+  // ── AI 검수 실행 (ai-review 상세 검토 → 빨간펜 이슈 카드로 표시) ──
   const handleCheck = async () => {
     if (!content) { alert('검수할 본문이 없습니다.'); return; }
-    setIsChecking(true); setReport(null);
+    setIsChecking(true); setReport(null); setAutoGate(null);
+    setChatMsgs([{ role: 'ai', text: '🔍 AI가 본문을 분석 중입니다... 설정 오류, 말투 위반, 스토리 모순을 검출합니다. (최대 2~3분 소요)' }]);
+
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
-      const response = await fetch('/api/quality-check', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ episodeNumber, episodeTitle, content, blueprint }),
+      const timeoutId = setTimeout(() => controller.abort(), 180000);
+
+      const res = await fetch('/api/ai-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'review', episodeNumber, episodeContent: content }),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
-      if (!response.ok) { const e = await response.json().catch(() => ({})); throw new Error(e.message || `API 오류 (${response.status})`); }
-      const data = await response.json();
-      if (data.success && data.report) {
-        setReport(data.report);
-        if (data.autoGate) setAutoGate(data.autoGate);
-        const cacheKey = 'novel_step7_reports';
-        const existing = JSON.parse(localStorage.getItem(cacheKey) || '{}');
-        existing[episodeNumber] = { ...data.report, autoGate: data.autoGate, timestamp: new Date().toISOString() };
-        localStorage.setItem(cacheKey, JSON.stringify(existing));
-      } else { throw new Error(data.message || '검수 실패'); }
+
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        setChatMsgs([{ role: 'ai', text: `검수 오류: ${data.error || `서버 응답 ${res.status}`}` }]);
+        setIsChecking(false);
+        return;
+      }
+
+      const rawIssues = data.review?.issues || data.issues || [];
+
+      if (rawIssues.length > 0) {
+        const issues: ChatIssue[] = rawIssues.map((i: any, idx: number) => ({
+          id: Date.now() + idx,
+          lineNumber: i.lineNumber || 0,
+          severity: i.severity || 'warning',
+          problem: i.problem || '',
+          suggestion: i.suggestion || '',
+          reference: i.reference || '',
+          location: i.location || '',
+        }));
+
+        const errCount = issues.filter(i => i.severity === 'error').length;
+        const warnCount = issues.filter(i => i.severity === 'warning').length;
+        const infoCount = issues.filter(i => i.severity === 'info').length;
+        const parts: string[] = [];
+        if (errCount > 0) parts.push(`오류 ${errCount}개`);
+        if (warnCount > 0) parts.push(`주의 ${warnCount}개`);
+        if (infoCount > 0) parts.push(`참고 ${infoCount}개`);
+
+        setChatMsgs([{
+          role: 'ai',
+          text: `제${episodeNumber}화 자동 검수 완료. 총 ${issues.length}개 이슈 발견 (${parts.join(', ')}). 각 항목에서 [AI 수정] → [적용]으로 바로 고칠 수 있습니다.`,
+          issues,
+        }]);
+
+        if (issues[0]?.lineNumber) scrollToLine(issues[0].lineNumber);
+      } else {
+        setChatMsgs([{ role: 'ai', text: `제${episodeNumber}화 자동 검수 완료 — 설정 오류나 모순이 발견되지 않았습니다. ✅` }]);
+      }
     } catch (error: any) {
-      if (error.name === 'AbortError') alert('시간 초과 (60초)');
-      else alert(`검수 실패: ${error.message}`);
-    } finally { setIsChecking(false); }
+      const errMsg = error.name === 'AbortError'
+        ? '시간 초과 (3분). 빨간펜에서 직접 지시해주세요.'
+        : `검수 오류: ${error.message}`;
+      setChatMsgs([{ role: 'ai', text: errMsg }]);
+    } finally {
+      setIsChecking(false);
+    }
   };
 
   // ── 유틸 ──
@@ -481,14 +533,14 @@ export default function Step7Page() {
         {/* 우측: 검수 실행 카드 */}
         <div className="widget-card flex flex-col items-center justify-center text-center space-y-4">
           <CheckSquare className="w-16 h-16 text-murim-accent" />
-          <h3 className="text-lg font-bold text-foreground">AI 품질 검수</h3>
-          <p className="text-sm text-gray-500">6가지 기준으로 본문을<br />엄격하게 분석합니다</p>
+          <h3 className="text-lg font-bold text-foreground">AI 빨간펜 검수</h3>
+          <p className="text-sm text-gray-500">참고자료와 대조하여<br />행별 오류를 자동 검출합니다</p>
           <div className="text-xs text-gray-600 space-y-1">
-            <p>경영 고증 / 개연성 / 설정 충돌</p>
-            <p>캐릭터 일관성 / 문체 / 절단신공</p>
+            <p>설정 충돌 / 말투 위반 / 스토리 모순</p>
+            <p>무공 오류 / 현대어 / 캐릭터 일관성</p>
           </div>
           <button onClick={handleCheck} disabled={isChecking || !content} className={`w-full px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2 ${isChecking || !content ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-murim-accent to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white shadow-lg'}`}>
-            {isChecking ? (<><div className="w-5 h-5 border-2 border-gray-500 border-t-white rounded-full animate-spin" /><span>검수 중...</span></>) : (<><Sparkles className="w-5 h-5" /><span>AI 검수 실행</span></>)}
+            {isChecking ? (<><div className="w-5 h-5 border-2 border-gray-500 border-t-white rounded-full animate-spin" /><span>검수 중... (최대 2~3분)</span></>) : (<><Sparkles className="w-5 h-5" /><span>AI 검수 실행</span></>)}
           </button>
         </div>
       </div>
