@@ -118,7 +118,7 @@ ${content}
     ].join(' · ');
 
     return NextResponse.json({
-      success: results.file, // 파일 저장이 핵심
+      success: results.file || results.db, // 파일 또는 DB 중 하나라도 성공하면 OK (Render 환경은 파일 쓰기 불가)
       message,
       results,
       wordCount,

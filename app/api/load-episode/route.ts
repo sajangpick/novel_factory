@@ -72,22 +72,19 @@ export async function GET(req: NextRequest) {
     const num = parseInt(episodeNum);
     let content = '';
     let source = '';
+    let fileContent = '';
+    let dbContent = '';
 
-    // ── 1순위: 파일에서 읽기 ──
+    // ── 1단계: 파일에서 읽기 ──
     const filePath = join(OUTPUT_DIR, `제${num}화.md`);
     if (existsSync(filePath)) {
       const raw = readFileSync(filePath, 'utf-8');
-      // 마크다운 헤더(# 제N화 — 제목\n\n---\n\n) 제거하고 본문만 반환
-      content = raw.replace(/^#[^\n]*\n+---\n+/, '').trim();
-      source = 'file';
-      console.log(`📖 제${num}화 파일에서 로드 (${content.length}자)`);
+      fileContent = raw.replace(/^#[^\n]*\n+---\n+/, '').trim();
     }
 
-    // ── 2순위: DB에서 읽기 (파일 없을 때) ──
-    // ★ 단, 파일이 삭제된 경우 DB 폴백도 건너뜀 (삭제 의도 존중)
-    // 파일이 한 번도 없었던 새 에피소드가 아니라, 삭제된 에피소드인지 확인
-    const wasDeleted = !existsSync(filePath) && readdirSync(OUTPUT_DIR).some((f: string) => f.startsWith(`제${num}화_폐기`));
-    if (!content && !wasDeleted) {
+    // ── 2단계: DB에서 읽기 ──
+    const wasDeleted = !existsSync(filePath) && existsSync(OUTPUT_DIR) && readdirSync(OUTPUT_DIR).some((f: string) => f.startsWith(`제${num}화_폐기`));
+    if (!wasDeleted) {
       try {
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -98,22 +95,31 @@ export async function GET(req: NextRequest) {
 
           const { data } = await supabase
             .from('episodes')
-            .select('manuscript, title')
+            .select('manuscript, title, updated_at')
             .eq('series_id', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')
             .eq('episode_number', num)
             .single();
 
           if (data?.manuscript) {
-            content = data.manuscript;
-            source = 'database';
-            console.log(`🗄️ 제${num}화 DB에서 로드 (${content.length}자)`);
+            dbContent = data.manuscript;
           }
         }
       } catch (e) {
         console.warn(`⚠️ DB 로드 실패 (무시):`, e);
       }
-    } else if (wasDeleted) {
-      console.log(`🚫 제${num}화 폐기 파일 감지 — DB 폴백 건너뜀 (삭제 의도 존중)`);
+    } else {
+      console.log(`🚫 제${num}화 폐기 파일 감지 — DB 폴백 건너뜀`);
+    }
+
+    // ── 3단계: DB 우선 (네트워크에서 수정한 최신 데이터), 없으면 파일 폴백 ──
+    if (dbContent) {
+      content = dbContent;
+      source = 'database';
+      console.log(`🗄️ 제${num}화 DB에서 로드 (${content.length}자)`);
+    } else if (fileContent) {
+      content = fileContent;
+      source = 'file';
+      console.log(`📖 제${num}화 파일에서 로드 (${content.length}자)`);
     }
 
     // ── 결과 반환 ──
