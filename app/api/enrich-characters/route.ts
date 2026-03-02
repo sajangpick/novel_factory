@@ -12,10 +12,10 @@ export async function POST(req: NextRequest) {
   try {
     console.log('🔥 277명 상세 정보 자동 채우기 시작...');
 
-    // Supabase 클라이언트
+    // Supabase 클라이언트 (service role key → RLS 우회)
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
     // 기존 캐릭터 전체 조회

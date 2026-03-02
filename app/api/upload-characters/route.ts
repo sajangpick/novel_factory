@@ -20,10 +20,10 @@ export async function POST(req: NextRequest) {
 
     console.log(`📤 ${characters.length}명 업로드 시작...`);
 
-    // Supabase 클라이언트
+    // Supabase 클라이언트 (service role key → RLS 우회)
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
     // 기존 데이터 삭제 (깨끗하게 시작) — RLS 우회를 위해 모든 행을 ID 범위로 삭제
