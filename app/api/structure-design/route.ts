@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       try {
         console.log(`🏗️ 제${episodeNumber}화 구조 설계 시작 (Claude Sonnet)`);
         structureText = await callClaude(claudeKey, prompt, 4000);
-        usedModel = 'claude-sonnet-4-5-20250929';
+        usedModel = 'claude-sonnet-4-6';
         priceInput = 3.00;
         priceOutput = 15.00;
       } catch (claudeErr: any) {
@@ -213,7 +213,7 @@ async function callClaude(apiKey: string, prompt: string, maxTokens: number): Pr
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'claude-sonnet-4-6',
       max_tokens: maxTokens,
       temperature: 0.6,  // 구조 설계: 창의성과 정확성 균형
       system: '당신은 무협 웹소설의 구조 설계 전문가입니다. 주어진 설계도의 정보만 사용하여 구조를 만드세요. 설계도에 없는 사건이나 캐릭터를 절대 지어내지 마세요.',

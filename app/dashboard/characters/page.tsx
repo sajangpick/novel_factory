@@ -1394,17 +1394,11 @@ export default function CharactersPage() {
     }
   };
 
-  // 캐릭터 추가 (Supabase에 직접 저장)
+  // 캐릭터 추가 (서버 API 경유 → service role key로 RLS 우회)
   const handleAddCharacter = async () => {
     try {
       setLoading(true);
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
 
-      // Supabase에 삽입할 데이터
       const insertData = {
         series_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
         name: formData.name,
@@ -1418,17 +1412,18 @@ export default function CharactersPage() {
         appearance: formData.appearance || null,
       };
 
-      const { data, error } = await supabase
-        .from('characters')
-        .insert(insertData)
-        .select()
-        .single();
+      const res = await fetch('/api/characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ character: insertData }),
+      });
 
-      if (error) throw error;
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || '추가 실패');
 
       // 로컬 상태에도 추가 (Supabase가 생성한 id 사용)
-      if (data) {
-        setCharacters([data, ...characters]);
+      if (result.data) {
+        setCharacters([result.data, ...characters]);
       }
 
       setShowAddModal(false);
@@ -1605,29 +1600,27 @@ export default function CharactersPage() {
     }
   };
 
-  // 캐릭터 수정 (30가지 특징 → Supabase 직접 저장)
+  // 캐릭터 수정 (서버 API 경유 → service role key로 RLS 우회)
   const handleEditCharacter = async () => {
     if (!editingChar) return;
     try {
       setLoading(true);
-      // Supabase에 직접 저장
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
-      // updated_at 제외, id 기준 업데이트
       const { id, created_at, updated_at, ...updateData } = editingChar;
-      const { error } = await supabase
-        .from('characters')
-        .update(updateData)
-        .eq('id', id);
-      if (error) {
-        console.error('Supabase 업데이트 오류:', error);
-        alert(`❌ 저장 실패: ${error.message}`);
+
+      const res = await fetch('/api/characters', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, updateData }),
+      });
+
+      const result = await res.json();
+      if (!res.ok) {
+        console.error('Supabase 업데이트 오류:', result.error);
+        alert(`❌ 저장 실패: ${result.error}`);
         setLoading(false);
         return;
       }
+
       // 로컬 상태도 동기화
       const updatedList = characters.map((char) =>
         char.id === editingChar.id ? { ...char, ...editingChar } as Character : char

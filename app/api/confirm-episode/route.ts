@@ -538,7 +538,7 @@ async function callAI(prompt: string): Promise<string> {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': claudeKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5-20250929',
+        model: 'claude-sonnet-4-6',
         max_tokens: maxTokens,
         temperature: 0.2,
         system: systemMsg,

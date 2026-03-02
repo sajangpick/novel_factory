@@ -500,7 +500,7 @@ const AI_LEVELS: Record<number, {
   priceOutput: number;  // USD per 백만 토큰
 }> = {
   1: { name: 'Lv.1 초안 (Gemini 3 Pro)',    provider: 'gemini', model: 'gemini-3-pro-preview',               priceInput: 2.00,  priceOutput: 12.00 },
-  2: { name: 'Lv.2 다듬기 (Claude Sonnet 4.5)', provider: 'claude', model: 'claude-sonnet-4-5-20250929', priceInput: 3.00,  priceOutput: 15.00 },
+  2: { name: 'Lv.2 다듬기 (Claude Sonnet 4.6)', provider: 'claude', model: 'claude-sonnet-4-6', priceInput: 3.00,  priceOutput: 15.00 },
   3: { name: 'Lv.3 최종 (Claude Opus)',     provider: 'claude', model: 'claude-3-opus-20240229',     priceInput: 15.00, priceOutput: 75.00 },
 };
 
@@ -927,10 +927,10 @@ ${generatedText}
 [지시]
 위 기준으로 퇴고한 완성본을 출력하세요. 원문의 스토리와 구성은 100% 유지하고, 문장과 표현만 다듬으세요.`;
 
-        const refinedText = await callClaude(claudeKey, refinePrompt, maxTokens, 'claude-sonnet-4-5-20250929');
+        const refinedText = await callClaude(claudeKey, refinePrompt, maxTokens, 'claude-sonnet-4-6');
         if (refinedText && refinedText.length > generatedText.length * 0.7) {
           generatedText = refinedText;
-          usedModel += ' → claude-sonnet-4.5(퇴고)';
+          usedModel += ' → claude-sonnet-4.6(퇴고)';
           pass2Applied = true;
           console.log(`✅ [B모드] 2-pass 퇴고 완료 (${refinedText.length}자)`);
         }
@@ -1163,6 +1163,16 @@ ${ANTI_PATTERNS}
 - 본문만 출력 (메타 설명, 주석, 태그 없이 순수 소설 텍스트만)
 - 장면 전환: *** (별 세 개)
 - 문단 구분: 빈 줄 한 칸
+- ★ 본문 마지막에 반드시 아래 형식으로 [다음 화 예고]를 추가하세요:
+
+---
+
+> **[다음 화 예고]**
+> *다음 화 핵심 장면 티저 1줄*
+> *긴장감 있는 대사 또는 상황 1~2줄*
+> *독자가 다음 화를 클릭하게 만드는 임팩트 있는 마무리 1줄*
+
+---
 
 ## ★★★ 최종 설계도 — 이것이 이번 화의 최우선 지침입니다 ★★★
 > 아래 설계도에 없는 내용을 AI가 임의로 추가하면 안 됩니다.
@@ -1263,7 +1273,7 @@ async function callOpenAI(apiKey: string, prompt: string, maxTokens: number): Pr
   return String(data?.choices?.[0]?.message?.content || '').trim();
 }
 
-async function callClaude(apiKey: string, prompt: string, maxTokens: number, model: string = 'claude-sonnet-4-5-20250929', temperature: number = 0.85): Promise<string> {
+async function callClaude(apiKey: string, prompt: string, maxTokens: number, model: string = 'claude-sonnet-4-6', temperature: number = 0.85): Promise<string> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
