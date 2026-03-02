@@ -1541,21 +1541,9 @@ export default function CharactersPage() {
 
     try {
       setLoading(true);
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
 
-      // 중복 체크: 이미 등록된 이름 확인
-      const names = blackTigerMembers.map(m => m.name);
-      const { data: existing } = await supabase
-        .from('characters')
-        .select('name')
-        .eq('series_id', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')
-        .in('name', names);
-
-      const existingNames = new Set(existing?.map(e => e.name) || []);
+      // 중복 체크: 로컬 상태에서 이미 등록된 이름 확인
+      const existingNames = new Set(characters.map(c => c.name));
       const newMembers = blackTigerMembers.filter(m => !existingNames.has(m.name));
 
       if (newMembers.length === 0) {
@@ -1564,7 +1552,7 @@ export default function CharactersPage() {
         return;
       }
 
-      // Supabase에 삽입
+      // 서버 API 경유로 일괄 등록
       const insertData = newMembers.map(m => ({
         ...m,
         series_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
@@ -1572,16 +1560,18 @@ export default function CharactersPage() {
         is_recurring: true,
       }));
 
-      const { data, error } = await supabase
-        .from('characters')
-        .insert(insertData)
-        .select();
+      const res = await fetch('/api/characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characters: insertData }),
+      });
 
-      if (error) throw error;
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || '등록 실패');
 
       // 로컬 상태에도 추가
-      if (data) {
-        setCharacters([...data, ...characters]);
+      if (result.data) {
+        setCharacters([...result.data, ...characters]);
       }
 
       setLoading(false);
@@ -1590,7 +1580,6 @@ export default function CharactersPage() {
     } catch (error) {
       console.error('❌ 흑호단 등록 오류:', error);
       setLoading(false);
-      // 에러 메시지를 상세히 표시 (Supabase 에러 포함)
       const errMsg = error instanceof Error 
         ? error.message 
         : (typeof error === 'object' && error !== null) 
@@ -1639,11 +1628,20 @@ export default function CharactersPage() {
     }
   };
 
-  // 캐릭터 삭제
-  const handleDeleteCharacter = (char: Character) => {
+  // 캐릭터 삭제 (서버 API 경유 → Supabase에서도 삭제)
+  const handleDeleteCharacter = async (char: Character) => {
     if (!confirm(`"${char.name}"을(를) 삭제하시겠습니까?`)) return;
-    setCharacters(characters.filter((c) => c.id !== char.id));
-    alert('✅ 캐릭터가 삭제되었습니다!');
+    try {
+      const res = await fetch(`/api/characters?id=${char.id}`, { method: 'DELETE' });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || '삭제 실패');
+
+      setCharacters(characters.filter((c) => c.id !== char.id));
+      alert('✅ 캐릭터가 삭제되었습니다!');
+    } catch (error) {
+      console.error('❌ 삭제 오류:', error);
+      alert('삭제 중 오류가 발생했습니다.\n\n' + (error instanceof Error ? error.message : String(error)));
+    }
   };
 
   // 수정 모달 열기 (30가지 특징 전체 로드)
@@ -2009,14 +2007,14 @@ export default function CharactersPage() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={handleAddCharacter}
-                disabled={!formData.name || !formData.faction}
+                disabled={!formData.name || !formData.faction || loading}
                 className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-colors ${
-                  formData.name && formData.faction
+                  formData.name && formData.faction && !loading
                     ? 'bg-murim-gold hover:bg-yellow-600 text-murim-darker'
                     : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                 }`}
               >
-                추가
+                {loading ? '저장 중...' : '추가'}
               </button>
               <button
                 onClick={() => setShowAddModal(false)}
