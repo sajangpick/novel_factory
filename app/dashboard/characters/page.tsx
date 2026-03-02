@@ -1895,7 +1895,7 @@ export default function CharactersPage() {
           onClick={() => setShowAddModal(false)}
         >
           <div
-            className="bg-murim-darker border border-murim-gold rounded-lg max-w-2xl w-full p-6"
+            className="bg-murim-darker border border-murim-gold rounded-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-2xl font-bold text-foreground mb-6">새 캐릭터 추가</h2>
