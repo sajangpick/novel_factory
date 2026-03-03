@@ -71,7 +71,10 @@ export async function GET(req: NextRequest) {
           if (dbEpisodes) {
             for (const ep of dbEpisodes) {
               if (!episodeMap.has(ep.episode_number)) {
-                const charCount = ep.word_count || (ep.manuscript ? ep.manuscript.replace(/\s/g, '').length : 0);
+                // 실제 본문이 있는 에피소드만 포함 (스켈레톤/빈 항목 제외, 최소 500자)
+                const actualChars = ep.manuscript ? ep.manuscript.replace(/\s/g, '').length : 0;
+                if (actualChars < 500) continue;
+                const charCount = ep.word_count || actualChars;
                 episodeMap.set(ep.episode_number, {
                   number: ep.episode_number,
                   charCount,

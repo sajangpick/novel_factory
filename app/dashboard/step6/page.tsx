@@ -675,36 +675,40 @@ export default function Step6Page() {
           />
         </div>
 
-        {/* ★ 에피소드 목록 (클릭으로 바로 이동) + 다음 화 쓰기 버튼 */}
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-gray-500 mr-1">📖 저장된 화:</span>
-          {Object.keys(savedEpisodes)
-            .map(Number)
-            .sort((a, b) => a - b)
-            .map((epNum) => (
-              <button
-                key={epNum}
-                onClick={() => goToEpisode(epNum)}
-                className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${
-                  epNum === episodeNumber
-                    ? 'bg-murim-gold text-black shadow-lg shadow-murim-gold/20'
-                    : 'bg-murim-darker border border-murim-border text-gray-400 hover:border-murim-gold hover:text-murim-gold'
-                }`}
-              >
-                {epNum}화
-              </button>
-            ))}
-          {/* ★ 다음 화 쓰기 버튼 — 마지막 저장 화 +1로 이동 */}
-          <button
-            onClick={() => {
-              const maxEp = Math.max(...Object.keys(savedEpisodes).map(Number), 0);
-              goToEpisode(maxEp + 1);
-            }}
-            className="px-2.5 py-1 rounded-md text-xs font-bold bg-murim-accent/20 border border-murim-accent/50 text-murim-accent hover:bg-murim-accent/30 transition-all"
-          >
-            + {Math.max(...Object.keys(savedEpisodes).map(Number), 0) + 1}화 쓰기
-          </button>
-        </div>
+        {/* ★ 에피소드 진행 현황 — 완료(초록) / 현재(골드) / 다음(노란점선) */}
+        {(() => {
+          const writtenNums = Object.keys(savedEpisodes).map(Number).filter(n => n > 0).sort((a, b) => a - b);
+          const maxEp = writtenNums.length > 0 ? Math.max(...writtenNums) : 0;
+          const nextEp = maxEp + 1;
+          return (
+            <div className="mt-3 flex items-center gap-2">
+              <span className="shrink-0 text-[10px] px-2 py-1 rounded-full bg-green-900/30 border border-green-800/40 text-green-400 font-bold">
+                ✅ {writtenNums.length}화 완료
+              </span>
+              <div className="flex flex-wrap items-center gap-1">
+                {writtenNums.map((epNum) => (
+                  <button
+                    key={epNum}
+                    onClick={() => goToEpisode(epNum)}
+                    className={`min-w-[2.2rem] px-1.5 py-0.5 rounded text-[11px] font-bold transition-all ${
+                      epNum === episodeNumber
+                        ? 'bg-murim-gold text-black shadow-md shadow-murim-gold/30 scale-110 ring-1 ring-murim-gold/50'
+                        : 'bg-green-900/20 border border-green-800/30 text-green-500 hover:bg-green-900/40 hover:border-green-500 hover:text-green-300'
+                    }`}
+                  >
+                    {epNum}화
+                  </button>
+                ))}
+                <button
+                  onClick={() => goToEpisode(nextEp)}
+                  className="px-2 py-0.5 rounded text-[11px] font-bold bg-yellow-900/20 border border-dashed border-yellow-600/40 text-yellow-500 hover:bg-yellow-900/30 hover:border-yellow-500 transition-all"
+                >
+                  + {nextEp}화 쓰기
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ━━━ 메인 영역 ━━━ */}
