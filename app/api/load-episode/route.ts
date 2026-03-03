@@ -12,7 +12,7 @@ import { join } from 'path';
  * 2. DB (Supabase episodes 테이블) — 백업
  * 
  * GET ?episode=14  → 특정 화 로드
- * GET ?list=true   → 존재하는 화 목록 (파일 기준)
+ * GET ?list=true   → 존재하는 화 목록 (파일 + DB 통합)
  */
 
 const OUTPUT_DIR = join(process.cwd(), 'novels', 'murim_mna', 'output');
@@ -24,11 +24,14 @@ export async function GET(req: NextRequest) {
     const listMode = searchParams.get('list');
 
     // ═══════════════════════════════════════════════════
-    // 목록 모드: 존재하는 화 번호 + 글자수 반환
+    // 목록 모드: 파일 + DB 통합 조회
+    // 파일에 있으면 파일 기준, 없으면 DB에서 보충
+    // → Render 재배포로 파일이 사라져도 DB에서 목록 유지
     // ═══════════════════════════════════════════════════
     if (listMode) {
-      const episodes: { number: number; charCount: number; source: string }[] = [];
+      const episodeMap = new Map<number, { number: number; charCount: number; source: string }>();
 
+      // ── 1단계: 로컬 파일에서 목록 수집 ──
       if (existsSync(OUTPUT_DIR)) {
         const files = readdirSync(OUTPUT_DIR)
           .filter((f: string) => f.match(/^제\d+화\.md$/))
@@ -41,15 +44,49 @@ export async function GET(req: NextRequest) {
         for (const file of files) {
           const num = parseInt(file.match(/\d+/)?.[0] || '0');
           const content = readFileSync(join(OUTPUT_DIR, file), 'utf-8');
-          // 마크다운 헤더 제거하고 본문만 카운트
           const body = content.replace(/^#[^\n]*\n+---\n+/, '');
-          episodes.push({
+          episodeMap.set(num, {
             number: num,
             charCount: body.replace(/\s/g, '').length,
             source: 'file',
           });
         }
       }
+
+      // ── 2단계: DB에서 파일에 없는 에피소드 보충 ──
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+        if (supabaseUrl && supabaseKey) {
+          const { createClient } = await import('@supabase/supabase-js');
+          const supabase = createClient(supabaseUrl, supabaseKey);
+
+          const { data: dbEpisodes } = await supabase
+            .from('episodes')
+            .select('episode_number, word_count, manuscript')
+            .eq('series_id', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')
+            .order('episode_number', { ascending: true });
+
+          if (dbEpisodes) {
+            for (const ep of dbEpisodes) {
+              if (!episodeMap.has(ep.episode_number)) {
+                const charCount = ep.word_count || (ep.manuscript ? ep.manuscript.replace(/\s/g, '').length : 0);
+                episodeMap.set(ep.episode_number, {
+                  number: ep.episode_number,
+                  charCount,
+                  source: 'database',
+                });
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ 목록 DB 조회 실패 (파일 목록만 반환):', e);
+      }
+
+      // ── 3단계: 화 번호순 정렬 후 반환 ──
+      const episodes = Array.from(episodeMap.values()).sort((a, b) => a.number - b.number);
 
       return NextResponse.json({
         success: true,
