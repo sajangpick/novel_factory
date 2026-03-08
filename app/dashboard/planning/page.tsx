@@ -300,8 +300,65 @@ export default function PlanningPage() {
     );
   }
 
+  // ── Skeleton 진행 현황 계산 ──
+  const SKELETON_SECTIONS = [
+    { label: '프롤로그', from: 1,   to: 13,  color: '#a855f7' },
+    { label: '기(起)',   from: 14,  to: 75,  color: '#3b82f6' },
+    { label: '승(承)',   from: 76,  to: 150, color: '#22c55e' },
+    { label: '전(轉)',   from: 151, to: 225, color: '#eab308' },
+    { label: '결(結)',   from: 226, to: 300, color: '#ef4444' },
+  ];
+  const skeletonSectionStats = SKELETON_SECTIONS.map(s => {
+    const total = s.to - s.from + 1;
+    const done = episodes.filter(ep => ep.id >= s.from && ep.id <= s.to && ep.skeleton?.trim()).length;
+    return { ...s, done, total };
+  });
+  const skeletonTotal = episodes.filter(ep => ep.skeleton?.trim()).length;
+  const skeletonPercent = episodes.length > 0 ? Math.round((skeletonTotal / episodes.length) * 100) : 0;
+
   return (
-    <div className="flex h-[calc(100vh-64px)]">
+    <div className="flex flex-col h-[calc(100vh-64px)]">
+
+      {/* ━━━ Skeleton 진행 현황 위젯 ━━━ */}
+      <div className="shrink-0 border-b border-murim-border bg-murim-darker/60 px-4 py-2.5">
+        <div className="flex items-center gap-4 flex-wrap">
+          {/* 전체 진행률 */}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-gray-400 whitespace-nowrap">Skeleton 진행</span>
+            <div className="w-24 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-green-500 rounded-full transition-all duration-500"
+                style={{ width: `${skeletonPercent}%` }}
+              />
+            </div>
+            <span className="text-[11px] font-bold text-green-400 whitespace-nowrap">
+              {skeletonTotal} / 300화 ({skeletonPercent}%)
+            </span>
+          </div>
+
+          {/* 구분선 */}
+          <div className="h-4 w-px bg-murim-border hidden sm:block" />
+
+          {/* 섹션별 현황 */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {skeletonSectionStats.map(s => (
+              <div key={s.label} className="flex items-center gap-1">
+                <span
+                  className="inline-block w-2 h-2 rounded-sm flex-shrink-0"
+                  style={{ backgroundColor: s.done > 0 ? s.color : '#374151' }}
+                />
+                <span className="text-[10px] text-gray-500">{s.label}</span>
+                <span className={`text-[10px] font-bold ${s.done > 0 ? 'text-green-400' : 'text-gray-600'}`}>
+                  {s.done}/{s.total}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ━━━ 메인 콘텐츠 (왼쪽 + 가운데) ━━━ */}
+      <div className="flex flex-1 min-h-0">
       {/* ━━━ 왼쪽: 네비게이션 패널 ━━━ */}
       <div className="w-64 flex-shrink-0 border-r border-murim-border overflow-y-auto bg-murim-darker/30">
         {/* 저장 상태 */}
@@ -673,6 +730,7 @@ export default function PlanningPage() {
           );
         })()}
       </div>
+      </div>{/* end flex flex-1 min-h-0 */}
 
     </div>
   );

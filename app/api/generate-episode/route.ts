@@ -22,7 +22,8 @@ interface GenerateEpisodeRequest {
   episodeNumber: number;         // 화 번호
   episodeTitle: string;          // 화 제목
   blueprint: string;             // Step 4의 5000자 최종 설계도
-  structureDesign?: string;      // ★ [파이프라인] 구조 설계 결과 (6하원칉+5막+핵심장면)
+  structureDesign?: string;      // ★ [파이프라인] 구조 설계 결과 (6하원칙+5막+핵심장면)
+  skeleton?: string;             // ★ DB skeleton (이번 화 설계 방향 요약)
   premiumMode?: boolean;         // ★ [A/B 테스트] B모드: 이전화 전문 + 2-pass 생성
   chunkMode?: boolean;           // ★ 장면별 분할 생성: 3단계로 나눠서 생성 (품질↑, 비용 약 1.3배)
   directorMode?: boolean;        // ★ 감독판 모드: 8~12비트 초정밀 생성 (품질↑↑, 비용 약 1.5배)
