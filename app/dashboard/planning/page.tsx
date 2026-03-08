@@ -460,7 +460,7 @@ export default function PlanningPage() {
                       >
                         <span className={`font-bold text-[9px] ${sectionColors[ep.section]}`}>{ep.section}</span>
                         <span className="truncate flex-1">{ep.id}화</span>
-                        {ep.skeleton && <Circle className="w-2 h-2 fill-green-500 text-green-500 flex-shrink-0" />}
+                        <Circle className={`w-2 h-2 flex-shrink-0 ${ep.skeleton ? 'fill-green-500 text-green-500' : 'fill-gray-700 text-gray-700'}`} />
                         {hasDesign && <Sparkles className="w-2.5 h-2.5 text-murim-gold flex-shrink-0" />}
                       </button>
                     );
