@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { 
-  BookOpen, 
-  Database, 
-  Users, 
+import {
+  BookOpen,
+  Database,
+  Users,
   LayoutDashboard,
   CheckSquare,
   Settings,
@@ -19,6 +19,7 @@ import {
   Crosshair,
   SearchCheck,
   ClipboardList,
+  Layers,
 } from 'lucide-react';
 
 /**
@@ -122,6 +123,12 @@ export default function Sidebar() {
               label="기획실"
               href="/dashboard/planning"
               isActive={pathname === '/dashboard/planning'}
+            />
+            <SidebarLink
+              icon={Layers}
+              label="아크 뷰어"
+              href="/dashboard/arc"
+              isActive={pathname === '/dashboard/arc'}
             />
           </div>
         </div>
