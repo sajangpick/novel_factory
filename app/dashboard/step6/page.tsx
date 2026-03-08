@@ -77,19 +77,35 @@ export default function Step6Page() {
 
   // ── 초기 데이터 로드 ──
   useEffect(() => {
-    // Step 3 에피소드 목록 불러오기
-    const step3Data = localStorage.getItem('novel_episodes_skeletons');
-    if (step3Data) {
+    // Step 3 에피소드 목록 불러오기 (DB 우선, localStorage 폴백)
+    (async () => {
       try {
-        const parsed = JSON.parse(step3Data);
-        setEpisodes(parsed);
-        if (parsed.length > 0 && parsed[0].title) {
-          setEpisodeTitle(parsed[0].title);
+        const res = await fetch('/api/novel-plans?keys=episodes');
+        const data = await res.json();
+        if (data.episodes?.data?.length > 0) {
+          setEpisodes(data.episodes.data);
+          if (data.episodes.data[0].title) {
+            setEpisodeTitle(data.episodes.data[0].title);
+          }
+          return;
         }
       } catch (e) {
-        console.warn('Step 3 데이터 로드 실패:', e);
+        console.warn('DB에서 에피소드 로드 실패, localStorage 폴백:', e);
       }
-    }
+      // localStorage 폴백
+      const step3Data = localStorage.getItem('novel_episodes_skeletons');
+      if (step3Data) {
+        try {
+          const parsed = JSON.parse(step3Data);
+          setEpisodes(parsed);
+          if (parsed.length > 0 && parsed[0].title) {
+            setEpisodeTitle(parsed[0].title);
+          }
+        } catch (e) {
+          console.warn('Step 3 데이터 로드 실패:', e);
+        }
+      }
+    })();
 
     // Step 4 설계도 불러오기 (화별 저장소 우선)
     const step4AllData = localStorage.getItem('novel_step4_all_designs');
@@ -320,6 +336,10 @@ export default function Step6Page() {
         cautions: memoryDashboard.cautions,
       } : null;
 
+      // ★ skeleton 검증 로그
+      const currentSkeleton = episodes[episodeNumber - 1]?.skeleton || '';
+      console.log(`[step6] 제${episodeNumber}화 skeleton (${currentSkeleton.length}자):`, currentSkeleton.slice(0, 60) || '(없음)');
+
       const response = await fetch('/api/generate-episode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -328,6 +348,7 @@ export default function Step6Page() {
           episodeTitle,
           blueprint,
           structureDesign,                      // ★ [파이프라인] 구조 설계 전달
+          skeleton: currentSkeleton,            // ★ DB skeleton 주입
           premiumMode,                          // ★ [A/B 테스트] B모드 여부
           section: activeSection,
           aiLevel,                              // ★ 선택한 AI Level 전달

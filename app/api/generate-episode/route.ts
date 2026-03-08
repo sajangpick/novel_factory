@@ -512,6 +512,7 @@ export async function POST(req: NextRequest) {
       episodeTitle,
       blueprint,
       structureDesign = '',     // ★ [파이프라인] 구조 설계 결과
+      skeleton = '',            // ★ DB skeleton (이번 화 설계 방향 요약)
       premiumMode = false,      // ★ [A/B 테스트] B모드 활성화 여부
       chunkMode = false,        // ★ 장면별 분할 생성 모드
       directorMode = false,     // ★ 감독판 모드
@@ -522,6 +523,11 @@ export async function POST(req: NextRequest) {
       worldContext = '',
       memoryContext,
     } = body;
+
+    // ★ skeleton 수신 확인 로그
+    if (skeleton) {
+      console.log(`[generate-episode] 제${episodeNumber}화 skeleton 수신 (${skeleton.length}자):`, skeleton.slice(0, 60));
+    }
 
     // ── 유효성 검사 ──
     if (!blueprint || blueprint.length < 100) {
@@ -672,6 +678,7 @@ export async function POST(req: NextRequest) {
       episodeTitle,
       blueprint,
       structureDesign,            // ★ [파이프라인] 구조 설계 전달
+      skeleton,                   // ★ DB skeleton 주입
       previousEpisodeEnding,      // ★ 이전 화 엔딩 자동 주입
       section,
       characters: enrichedCharacters,
@@ -1071,6 +1078,7 @@ function buildEpisodePrompt(params: {
   episodeTitle: string;
   blueprint: string;
   structureDesign?: string;
+  skeleton?: string;             // ★ DB skeleton (이번 화 설계 방향 요약)
   previousEpisodeEnding?: string;
   section: string;
   characters: any[];
@@ -1083,7 +1091,7 @@ function buildEpisodePrompt(params: {
   characterVoices?: string;      // ★ [품질 엔진] 캐릭터 대사 앵커링
   loreReferences?: string;       // ★ [설정 자동 주입] 인명록·바이블 자동 추출 설정
 }): string {
-  const { episodeNumber, episodeTitle, blueprint, structureDesign, previousEpisodeEnding, section, characters, previousEpisodeSummary, worldContext, memoryContext, masterContext, memoryCardsContext, styleReference, characterVoices, loreReferences } = params;
+  const { episodeNumber, episodeTitle, blueprint, structureDesign, skeleton, previousEpisodeEnding, section, characters, previousEpisodeSummary, worldContext, memoryContext, masterContext, memoryCardsContext, styleReference, characterVoices, loreReferences } = params;
 
   // ── 캐릭터 페르소나 정보 구성 ──
   let characterGuide = '';
@@ -1174,7 +1182,12 @@ ${ANTI_PATTERNS}
 
 ---
 
-## ★★★ 최종 설계도 — 이것이 이번 화의 최우선 지침입니다 ★★★
+${skeleton ? `## 📌 이번 화 설계 방향 (skeleton)
+> 아래 skeleton을 반드시 반영하여 집필하되, 세부 묘사와 대사는 자유롭게 확장한다.
+
+${skeleton}
+
+` : ''}## ★★★ 최종 설계도 — 이것이 이번 화의 최우선 지침입니다 ★★★
 > 아래 설계도에 없는 내용을 AI가 임의로 추가하면 안 됩니다.
 > 설계도에 명시된 캐릭터·사건·장소만 등장시키세요.
 
